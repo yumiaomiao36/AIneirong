@@ -391,11 +391,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             cache_path = self._cache_video(video_url, self._video_auth_header())
             filename = os.path.basename(cache_path)
-            try:
-                import imageio_ffmpeg
-                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception:
-                ffmpeg_exe = shutil.which('ffmpeg')
+            ffmpeg_exe = self._select_ffmpeg()
             duration = self._media_duration(ffmpeg_exe, cache_path) if ffmpeg_exe else None
             has_audio = self._media_has_audio(ffmpeg_exe, cache_path) if ffmpeg_exe else None
             width, height = self._media_dimensions(ffmpeg_exe, cache_path) if ffmpeg_exe else (None, None)
@@ -1363,11 +1359,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             aspect = data.get('aspect') or '9:16'
             width, height = (1280, 720) if aspect == '16:9' else (1024, 1024) if aspect == '1:1' else (720, 1280)
 
-            try:
-                import imageio_ffmpeg
-                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception:
-                ffmpeg_exe = shutil.which('ffmpeg')
+            ffmpeg_exe = self._select_ffmpeg(require_drawtext=bool(raw_subtitles))
             if not ffmpeg_exe:
                 raise RuntimeError('未找到 ffmpeg，无法生成 Ken Burns 视频')
 
@@ -1516,11 +1508,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             provider = self._create_dashscope_tts(text, voice, tts_auth, audio_file)
             warning = ''
 
-            try:
-                import imageio_ffmpeg
-                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception:
-                ffmpeg_exe = shutil.which('ffmpeg')
+            ffmpeg_exe = self._select_ffmpeg()
             duration = self._media_duration(ffmpeg_exe, audio_file) if ffmpeg_exe else None
             self._json_response(200, {
                 'ok': True,
@@ -1567,11 +1555,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 raise RuntimeError('缺少百炼 Key，无法生成配音。系统已移除本机语音兜底，避免客户环境依赖 macOS。')
             self._create_dashscope_tts(text, voice, tts_auth, audio_file)
 
-            try:
-                import imageio_ffmpeg
-                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception:
-                ffmpeg_exe = shutil.which('ffmpeg')
+            ffmpeg_exe = self._select_ffmpeg(require_drawtext=True)
             if not ffmpeg_exe:
                 raise RuntimeError('未找到 ffmpeg，无法把配音合成进视频')
 
@@ -1762,11 +1746,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             width, height = (1280, 720) if aspect == '16:9' else (1080, 1080) if aspect == '1:1' else (720, 1280)
             brand = (data.get('brandName') or '').strip()
 
-            try:
-                import imageio_ffmpeg
-                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception:
-                ffmpeg_exe = shutil.which('ffmpeg')
+            ffmpeg_exe = self._select_ffmpeg(require_drawtext=True)
             if not ffmpeg_exe:
                 raise RuntimeError('未找到 ffmpeg，无法合成混剪视频')
 
@@ -2311,11 +2291,67 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return (None, None)
         return (int(match.group(1)), int(match.group(2)))
 
+    def _ffmpeg_candidates(self):
+        candidates = []
+        system_ffmpeg = shutil.which('ffmpeg')
+        if system_ffmpeg:
+            candidates.append(system_ffmpeg)
+        try:
+            import imageio_ffmpeg
+            bundled = imageio_ffmpeg.get_ffmpeg_exe()
+            if bundled:
+                candidates.append(bundled)
+        except Exception:
+            pass
+        unique = []
+        for item in candidates:
+            if item and item not in unique:
+                unique.append(item)
+        return unique
+
+    def _ffmpeg_supports_filter(self, ffmpeg_exe, filter_name):
+        cache = getattr(self.server, '_ffmpeg_filter_cache', None)
+        if cache is None:
+            cache = {}
+            setattr(self.server, '_ffmpeg_filter_cache', cache)
+        key = (ffmpeg_exe, filter_name)
+        if key in cache:
+            return cache[key]
+        try:
+            probe = subprocess.run(
+                [ffmpeg_exe, '-hide_banner', '-filters'],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            text = (probe.stdout or '') + (probe.stderr or '')
+            supported = bool(re.search(rf'\b{re.escape(filter_name)}\b', text))
+        except Exception:
+            supported = False
+        cache[key] = supported
+        return supported
+
+    def _select_ffmpeg(self, require_drawtext=False):
+        candidates = self._ffmpeg_candidates()
+        if not candidates:
+            return None
+        if not require_drawtext:
+            return candidates[0]
+        for candidate in candidates:
+            if self._ffmpeg_supports_filter(candidate, 'drawtext'):
+                return candidate
+        raise RuntimeError('当前服务器 ffmpeg 不支持 drawtext 字幕滤镜，请安装系统 ffmpeg（apt install -y ffmpeg fonts-wqy-zenhei）后重试')
+
     def _ffmpeg_drawtext_escape(self, text):
         return text.replace('\\', '\\\\').replace(':', '\\:').replace("'", "\\'").replace('%', '\\%')
 
     def _find_chinese_font(self):
         for candidate in [
+            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/truetype/arphic/uming.ttc',
             '/System/Library/Fonts/PingFang.ttc',
             '/System/Library/Fonts/STHeiti Light.ttc',
             '/Library/Fonts/Arial Unicode.ttf',
