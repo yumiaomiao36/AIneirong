@@ -2896,11 +2896,18 @@ boot();
                     'updated_at': time.time(),
                 }, f, ensure_ascii=False, indent=2)
             log_file = open(log_path, 'a', encoding='utf-8')
+            child_env = os.environ.copy()
+            child_env.setdefault(
+                'PLAYWRIGHT_BROWSERS_PATH',
+                os.path.join(script_dir, '.playwright-browsers'),
+            )
+            child_env.setdefault('HOME', script_dir)
             subprocess.Popen(
                 cmd,
                 cwd=script_dir,
                 stdout=log_file,
                 stderr=log_file,
+                env=child_env,
             )
             log_file.close()
         except Exception as e:

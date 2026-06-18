@@ -7,6 +7,7 @@ Type=simple
 WorkingDirectory=/opt/agent-workflow-2.0
 Environment=HOST=0.0.0.0
 Environment=PORT=8888
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/agent-workflow-2.0/.playwright-browsers
 ExecStart=/opt/agent-workflow-2.0/.venv/bin/python /opt/agent-workflow-2.0/server.py
 Restart=always
 RestartSec=5

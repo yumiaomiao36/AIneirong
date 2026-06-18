@@ -14,7 +14,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg fonts-noto-cjk
+sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg fonts-noto-cjk fonts-wqy-zenhei
 ```
 
 ## 项目目录
@@ -40,7 +40,8 @@ cd /opt/agent-workflow-2.0
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-python -m playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=/opt/agent-workflow-2.0/.playwright-browsers python -m playwright install chromium
+sudo chown -R www-data:www-data data materials logs publish_tasks publish_debug .playwright-browsers
 ```
 
 ## 本地测试启动
