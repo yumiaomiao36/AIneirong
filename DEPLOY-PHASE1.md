@@ -136,6 +136,28 @@ http://你的域名
 - 默认音色
 - 客户账号和免费次数
 
+## 服务器备份
+
+备份会包含账号、系统配置、素材库、发布任务、日志、抖音登录态等关键数据；不会备份 `.venv` 和 Playwright 浏览器二进制。
+
+```bash
+cd /opt/agent-workflow-2.0
+chmod +x deploy/backup-agent-workflow.sh
+./deploy/backup-agent-workflow.sh
+```
+
+备份文件默认保存到：
+
+```text
+/opt/agent-workflow-backups/
+```
+
+默认自动保留最近 14 天。需要改保留天数时：
+
+```bash
+KEEP_DAYS=30 ./deploy/backup-agent-workflow.sh
+```
+
 ## Phase 1 注意事项
 
 - 已把前端接口从 `http://localhost:8888/...` 改成相对路径，云端访问不会请求客户自己的电脑。
