@@ -2870,8 +2870,8 @@ boot();
         script_dir = os.path.dirname(os.path.abspath(__file__))
         publisher_script = os.path.join(script_dir, 'douyin_publisher.py')
 
-        # 使用系统 Python（Playwright 安装在其 site-packages 下）
-        python_exe = '/usr/bin/python3'
+        # 使用当前服务所在的 Python，确保云端 systemd 运行时也能找到 venv 里的 Playwright。
+        python_exe = sys.executable or os.path.join(script_dir, '.venv', 'bin', 'python')
         cmd = [
             python_exe, publisher_script,
             '--task-id', task_id,
@@ -2883,8 +2883,18 @@ boot();
 
         try:
             debug_dir = os.path.join(script_dir, 'publish_debug')
+            tasks_dir = os.path.join(script_dir, 'publish_tasks')
             os.makedirs(debug_dir, exist_ok=True)
+            os.makedirs(tasks_dir, exist_ok=True)
             log_path = os.path.join(debug_dir, f'{task_id}.log')
+            status_path = os.path.join(tasks_dir, f'{task_id}.json')
+            with open(status_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'task_id': task_id,
+                    'status': 'queued',
+                    'message': '发布任务已创建，正在启动浏览器',
+                    'updated_at': time.time(),
+                }, f, ensure_ascii=False, indent=2)
             log_file = open(log_path, 'a', encoding='utf-8')
             subprocess.Popen(
                 cmd,

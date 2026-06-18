@@ -2681,7 +2681,7 @@ function contentIndustryProfile(selection = S, plan = {}) {
   const profiles = [
     {
       key: 'tissue',
-      pattern: /纸巾|抽纸|卫生纸|卷纸|湿巾|洗脸巾|面巾纸|厨房纸|柔纸巾|家清|日化|快消/,
+      words: ['纸巾', '抽纸', '卫生纸', '卷纸', '湿巾', '洗脸巾', '面巾纸', '厨房纸', '柔纸巾', '家清'],
       label: '纸巾/日化家居',
       visual: '纸巾产品包装、抽纸或卷纸实物、家庭客厅/餐桌/厨房/卫生间使用场景、商超货架陈列、门店堆头、清洁擦拭细节',
       must: ['纸巾', '抽纸', '卷纸', '湿巾', '包装', '货架', '家庭', '清洁', '日化', '家居'],
@@ -2689,15 +2689,15 @@ function contentIndustryProfile(selection = S, plan = {}) {
     },
     {
       key: 'fresh',
-      pattern: /生鲜|水果|蔬菜|鲜肉|水产|海鲜|冷鲜|农产品|菜市场|果蔬/,
+      words: ['生鲜', '水果', '蔬菜', '鲜肉', '肉类', '水产', '海鲜', '冷鲜', '农产品', '菜市场', '果蔬', '称重', '收银'],
       label: '生鲜门店',
       visual: '生鲜门店、果蔬货架、称重收银、鲜肉水产陈列、顾客选购、干净明亮的本地门店',
-      must: ['生鲜', '水果', '蔬菜', '货架', '门店', '称重', '收银', '顾客'],
+      must: ['生鲜', '水果', '蔬菜', '鲜肉', '水产', '货架', '门店', '称重', '收银', '顾客'],
       avoid: ['电脑屏幕', '办公室', '会议', '软件界面'],
     },
     {
       key: 'food',
-      pattern: /餐饮|饭店|餐厅|火锅|烧烤|奶茶|咖啡|烘焙|菜品|外卖|食品|食材/,
+      words: ['餐饮', '饭店', '餐厅', '火锅', '烧烤', '奶茶', '咖啡', '烘焙', '菜品', '外卖', '食品', '食材'],
       label: '餐饮食品',
       visual: '餐厅门店、菜品特写、后厨备餐、顾客用餐、服务员上菜、干净真实的餐饮环境',
       must: ['餐厅', '菜品', '门店', '厨房', '食材', '顾客', '服务'],
@@ -2705,14 +2705,22 @@ function contentIndustryProfile(selection = S, plan = {}) {
     },
     {
       key: 'enterprise_ai',
-      pattern: /ai|人工智能|智能|自动化|软件|系统|数据|企业|公司|办公|客服|销售|运营|团队/,
+      words: ['ai', '人工智能', '智能', '自动化', '软件', '系统', '数据', '企业', '公司', '办公', '客服', '销售', '运营', '团队'],
       label: '企业服务/AI办公',
       visual: '中国企业办公、团队协作、电脑操作、会议沟通、流程动画、真实工作场景',
       must: ['办公室', '团队', '电脑', '会议', '企业', '流程'],
       avoid: ['餐饮', '食品', '厨房', '旅游', '宠物'],
     },
   ];
-  return profiles.find(p => p.pattern.test(text)) || {
+  const scored = profiles
+    .map((profile, index) => ({
+      profile,
+      index,
+      score: (profile.words || []).reduce((sum, word) => sum + (text.includes(String(word).toLowerCase()) ? 1 : 0), 0),
+    }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored[0]?.profile || {
     key: 'general_product',
     label: '通用产品/品牌',
     visual: '产品实物、包装细节、使用场景、门店陈列、顾客体验、品牌氛围和生活化场景',
@@ -6913,6 +6921,7 @@ async function autoPublishDouyin() {
 
   // 轮询状态
   const progressMap = {
+    queued: { icon: '⏳', text: '发布任务已创建，正在启动浏览器...', pct: 4 },
     starting: { icon: '⏳', text: '任务已排队...', pct: 5 },
     launching_browser: { icon: '🚀', text: '正在启动浏览器...', pct: 10 },
     launching_browser_retry: { icon: '🚀', text: '发布浏览器配置被占用，正在切换独立窗口重试...', pct: 11 },
@@ -6969,7 +6978,15 @@ async function autoPublishDouyin() {
   _publishPollTimer = setInterval(async () => {
     try {
       const resp = await fetch(`/publish/status?task_id=${taskId}`, { headers: authHeaders() });
-      if (!resp.ok) { setPublishStatusUI({ icon: '⚠️', text: '状态查询异常...', pct: 0 }); return; }
+      if (!resp.ok) {
+        let errText = `HTTP ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          errText = errData.error || errData.message || errData.status || errText;
+        } catch {}
+        setPublishStatusUI({ icon: '⚠️', text: '状态查询异常...', pct: 0 }, `状态查询异常：${errText}`);
+        return;
+      }
       const data = await resp.json();
       const info = progressMap[data.status];
       if (info) {
