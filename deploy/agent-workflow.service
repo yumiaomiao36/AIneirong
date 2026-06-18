@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/agent-workflow-2.0
-Environment=HOST=127.0.0.1
+Environment=HOST=0.0.0.0
 Environment=PORT=8888
 ExecStart=/opt/agent-workflow-2.0/.venv/bin/python /opt/agent-workflow-2.0/server.py
 Restart=always
