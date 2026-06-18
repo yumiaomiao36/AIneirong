@@ -234,6 +234,7 @@ def cleanup_publish_overlays(page):
 
 def browser_launch_kwargs(user_data_dir: Path):
     mark_profile_clean(user_data_dir)
+    runtime_env = browser_runtime_env(user_data_dir)
     return {
         'user_data_dir': str(user_data_dir),
         'headless': False,
@@ -247,6 +248,7 @@ def browser_launch_kwargs(user_data_dir: Path):
             'Chrome/125.0.0.0 Safari/537.36'
         ),
         'locale': 'zh-CN',
+        'env': runtime_env,
         'args': [
             '--no-proxy-server',
             '--window-size=1440,820',
@@ -254,14 +256,41 @@ def browser_launch_kwargs(user_data_dir: Path):
             '--disable-session-crashed-bubble',
             '--hide-crash-restore-bubble',
             '--disable-restore-session-state',
+            '--disable-crash-reporter',
+            '--disable-crashpad',
+            '--noerrdialogs',
+            '--disable-gpu',
         ],
     }
+
+
+def browser_runtime_env(user_data_dir: Path):
+    """Give Chromium writable runtime locations under the project on Linux services."""
+    runtime_root = PROJECT_DIR / '.playwright_runtime'
+    cache_home = runtime_root / 'cache'
+    config_home = runtime_root / 'config'
+    tmp_dir = runtime_root / 'tmp'
+    crashpad_dir = user_data_dir / 'Crashpad'
+    crash_reports_dir = user_data_dir / 'Crash Reports'
+    for path in (runtime_root, cache_home, config_home, tmp_dir, crashpad_dir, crash_reports_dir):
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+    env = os.environ.copy()
+    env.setdefault('HOME', str(PROJECT_DIR))
+    env.setdefault('XDG_CACHE_HOME', str(cache_home))
+    env.setdefault('XDG_CONFIG_HOME', str(config_home))
+    env.setdefault('TMPDIR', str(tmp_dir))
+    return env
 
 
 def mark_profile_clean(user_data_dir: Path):
     """Avoid Chromium's "restore pages" bubble after an unclean previous close."""
     try:
         user_data_dir.mkdir(parents=True, exist_ok=True)
+        for extra in ('Default', 'Crashpad', 'Crash Reports'):
+            (user_data_dir / extra).mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
     candidates = [

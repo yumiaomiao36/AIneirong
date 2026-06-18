@@ -41,7 +41,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 PLAYWRIGHT_BROWSERS_PATH=/opt/agent-workflow-2.0/.playwright-browsers python -m playwright install chromium
-sudo chown -R www-data:www-data data materials logs publish_tasks publish_debug .playwright-browsers
+mkdir -p .playwright_profile .playwright_runtime
+sudo chown -R www-data:www-data data materials logs publish_tasks publish_debug .playwright-browsers .playwright_profile .playwright_runtime
 ```
 
 ## 本地测试启动
