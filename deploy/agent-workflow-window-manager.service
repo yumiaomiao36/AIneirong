@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Workflow Virtual Desktop Window Manager
+After=agent-workflow-display.service
+Requires=agent-workflow-display.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:99
+ExecStart=/usr/bin/fluxbox
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

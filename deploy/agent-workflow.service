@@ -1,6 +1,7 @@
 [Unit]
 Description=Agent Workflow 2.0 Web Service
-After=network.target
+After=network.target agent-workflow-display.service agent-workflow-window-manager.service
+Wants=agent-workflow-display.service agent-workflow-window-manager.service
 
 [Service]
 Type=simple
@@ -8,6 +9,7 @@ WorkingDirectory=/opt/agent-workflow-2.0
 Environment=HOST=0.0.0.0
 Environment=PORT=8888
 Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/agent-workflow-2.0/.playwright-browsers
+Environment=DISPLAY=:99
 ExecStart=/opt/agent-workflow-2.0/.venv/bin/python /opt/agent-workflow-2.0/server.py
 Restart=always
 RestartSec=5

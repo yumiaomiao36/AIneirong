@@ -14,7 +14,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg xvfb fonts-noto-cjk fonts-wqy-zenhei
+sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg xvfb fluxbox x11vnc novnc websockify fonts-noto-cjk fonts-wqy-zenhei
 ```
 
 ## 项目目录
@@ -44,6 +44,37 @@ PLAYWRIGHT_BROWSERS_PATH=/opt/agent-workflow-2.0/.playwright-browsers python -m 
 mkdir -p .playwright_profile .playwright_runtime
 sudo chown -R www-data:www-data data materials logs publish_tasks publish_debug .playwright-browsers .playwright_profile .playwright_runtime
 ```
+
+## 云端可视化发布窗口（noVNC）
+
+用于抖音发布 RPA 的云端浏览器可视化接管。先设置一个 VNC 密码：
+
+```bash
+cd /opt/agent-workflow-2.0
+sudo x11vnc -storepasswd '请改成强密码' data/vnc.pass
+sudo chown www-data:www-data data/vnc.pass
+sudo chmod 600 data/vnc.pass
+```
+
+安装并启动虚拟桌面、VNC、noVNC：
+
+```bash
+sudo cp deploy/agent-workflow-display.service /etc/systemd/system/agent-workflow-display.service
+sudo cp deploy/agent-workflow-window-manager.service /etc/systemd/system/agent-workflow-window-manager.service
+sudo cp deploy/agent-workflow-vnc.service /etc/systemd/system/agent-workflow-vnc.service
+sudo cp deploy/agent-workflow-novnc.service /etc/systemd/system/agent-workflow-novnc.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now agent-workflow-display agent-workflow-window-manager agent-workflow-vnc agent-workflow-novnc
+sudo systemctl status agent-workflow-novnc --no-pager
+```
+
+浏览器访问：
+
+```text
+http://服务器公网IP:6080/vnc.html?autoconnect=true&resize=scale&shared=true
+```
+
+阿里云安全组需要临时放行 TCP `6080`。这是远程桌面入口，演示阶段建议只允许你的办公 IP 访问，不要长期全网开放。
 
 ## 本地测试启动
 
@@ -101,4 +132,4 @@ http://你的域名
 - 已把前端接口从 `http://localhost:8888/...` 改成相对路径，云端访问不会请求客户自己的电脑。
 - 服务监听地址支持环境变量：`HOST`、`PORT`。
 - 云端建议启用 OSS，素材和成品不要长期堆在服务器磁盘。
-- 抖音半自动发布 RPA 在云端会打开服务器里的 Chromium，客户未必能看到浏览器窗口；Phase 1 建议先把“生成/素材/账号/后台”跑通，发布助手后续单独做远程浏览器或本地发布助手。
+- 抖音发布 RPA 在云端会打开服务器里的 Chromium；如需登录、验证码、人工确认发布，请通过 noVNC 发布窗口接管。

@@ -1264,6 +1264,7 @@ textarea { resize: vertical; min-height: 80px; }
         <button class="btn btn-secondary" onclick="copyPublishTitle()">复制标题</button>
         <button class="btn btn-secondary" onclick="copyPublishBody()">复制正文</button>
         <button class="btn btn-primary" onclick="openPlatformBackend()">🌐 打开发布后台</button>
+        <button class="btn btn-secondary" onclick="openCloudPublishConsole()">🖥️ 打开云端发布窗口</button>
         <button class="btn btn-success" onclick="markPublishStatus()">✅ 记录发布状态</button>
         <button class="btn btn-warning" id="autoPublishBtn" onclick="autoPublishDouyin()">🤖 半自动发布到抖音</button>
       </div>
@@ -6863,6 +6864,17 @@ function finishPublishStatusUI(delay = 30000) {
     if (box) box.style.display = 'none';
     _publishFloatingHideTimer = null;
   }, delay);
+}
+
+function getCloudPublishConsoleUrl() {
+  const { protocol, hostname, port, origin } = window.location;
+  const query = 'vnc.html?autoconnect=true&resize=scale&shared=true';
+  if (!port || port === '80' || port === '443') return `${origin}/novnc/${query}`;
+  return `${protocol}//${hostname}:6080/${query}`;
+}
+
+function openCloudPublishConsole() {
+  window.open(getCloudPublishConsoleUrl(), '_blank');
 }
 
 async function autoPublishDouyin() {

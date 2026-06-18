@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Workflow VNC Bridge
+After=agent-workflow-display.service agent-workflow-window-manager.service
+Requires=agent-workflow-display.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:99
+ExecStart=/usr/bin/x11vnc -display :99 -forever -shared -rfbport 5900 -localhost -passwdfile /opt/agent-workflow-2.0/data/vnc.pass -noxdamage -repeat -quiet
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
