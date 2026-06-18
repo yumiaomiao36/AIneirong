@@ -1,0 +1,17 @@
+[Unit]
+Description=Agent Workflow 2.0 Web Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/agent-workflow-2.0
+Environment=HOST=127.0.0.1
+Environment=PORT=8888
+ExecStart=/opt/agent-workflow-2.0/.venv/bin/python /opt/agent-workflow-2.0/server.py
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
