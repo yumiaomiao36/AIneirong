@@ -1685,6 +1685,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'warning': tts_warning,
             })
         except Exception as e:
+            _server_logger.exception('voice-compose failed: %s', e)
             self._json_response(500, {'ok': False, 'error': str(e)})
 
     def _video_stitch(self):

@@ -4845,6 +4845,9 @@ async function runVideoStep() {
       if (S.sourceVideoHasAudio === false) {
         u(3, 'running', '视频无音轨，正在自动合成已确认口播配音...');
         await composeVoiceover({ auto: true, durationOverride: S.voiceoverPlannedDuration || S.sourceVideoDuration || getTargetVideoDuration(S) });
+        if (S.sourceVideoHasAudio !== true) {
+          throw new Error(S.voiceComposeError || '自动配音未成功，已停止进入成片成功态');
+        }
       }
     }
     S.qaReport = buildQaReport();
@@ -6273,13 +6276,21 @@ async function composeVoiceover(options = {}) {
     S.sourceVideoWidth = data.width || S.sourceVideoWidth;
     S.sourceVideoHeight = data.height || S.sourceVideoHeight;
     S.qaReport = buildQaReport();
+    if (typeof logger !== 'undefined') {
+      logger.info(`[voice-compose success] auto=${!!options.auto} url=${data.url} duration=${data.duration || ''} hasAudio=${data.hasAudio} subtitleCount=${data.subtitleCount ?? ''}`);
+    }
     if (!options.auto) {
       saveTaskToHistory('generated');
       renderResults();
     }
     toast(options.auto ? '✅ 已自动补上配音成片' : '✅ 已生成有声成片');
   } catch (e) {
+    S.voiceComposeError = e?.message || String(e || '未知错误');
+    if (typeof logger !== 'undefined') {
+      logger.error(`[voice-compose failed] auto=${!!options.auto} error=${S.voiceComposeError}`);
+    }
     toast((options.auto ? '⚠️ 自动配音失败：' : '❌ 配音合成失败：') + e.message);
+    if (options.auto) throw e;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText; }
   }
