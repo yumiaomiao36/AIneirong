@@ -14,7 +14,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg fonts-noto-cjk fonts-wqy-zenhei
+sudo apt install -y python3 python3-venv python3-pip nginx ffmpeg xvfb fonts-noto-cjk fonts-wqy-zenhei
 ```
 
 ## 项目目录

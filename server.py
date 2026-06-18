@@ -2880,6 +2880,14 @@ boot();
             '--body', body,
             '--hashtags', hashtags,
         ]
+        xvfb_exe = shutil.which('xvfb-run')
+        if not os.environ.get('DISPLAY') and xvfb_exe:
+            cmd = [
+                xvfb_exe,
+                '-a',
+                '-s', '-screen 0 1440x900x24',
+                *cmd,
+            ]
 
         try:
             debug_dir = os.path.join(script_dir, 'publish_debug')
@@ -2902,6 +2910,8 @@ boot();
                 os.path.join(script_dir, '.playwright-browsers'),
             )
             child_env.setdefault('HOME', script_dir)
+            child_env.setdefault('XDG_RUNTIME_DIR', os.path.join(script_dir, '.playwright_runtime', 'xdg'))
+            os.makedirs(child_env['XDG_RUNTIME_DIR'], exist_ok=True)
             subprocess.Popen(
                 cmd,
                 cwd=script_dir,
