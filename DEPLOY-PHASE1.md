@@ -68,6 +68,15 @@ sudo systemctl enable --now agent-workflow-display agent-workflow-window-manager
 sudo systemctl status agent-workflow-novnc --no-pager
 ```
 
+如果 `agent-workflow-novnc` 报 `status=203/EXEC`，检查：
+
+```bash
+which websockify
+ls /usr/share/novnc
+```
+
+当前服务模板使用 `/usr/bin/websockify --web=/usr/share/novnc 0.0.0.0:6080 127.0.0.1:5900`。
+
 浏览器访问：
 
 ```text
