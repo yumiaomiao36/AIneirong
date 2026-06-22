@@ -1266,7 +1266,7 @@ textarea { resize: vertical; min-height: 80px; }
         <button class="btn btn-primary" onclick="openPlatformBackend()">🌐 打开发布后台</button>
         <button class="btn btn-secondary" onclick="openCloudPublishConsole()">🖥️ 打开云端发布窗口</button>
         <button class="btn btn-success" onclick="markPublishStatus()">✅ 记录发布状态</button>
-        <button class="btn btn-warning" id="autoPublishBtn" onclick="autoPublishDouyin()">🤖 半自动发布到抖音</button>
+        <button class="btn btn-warning" id="autoPublishBtn" onclick="autoPublishDouyin()">🤖 自动发布到抖音</button>
       </div>
       <div id="publishStatusBox" style="margin-top:10px;display:none">
         <div style="display:flex;align-items:center;gap:8px;font-size:13px">
@@ -1544,7 +1544,7 @@ textarea { resize: vertical; min-height: 80px; }
   <div class="publish-floating-icon" id="publishFloatingIcon">⏳</div>
   <div class="publish-floating-main">
     <div class="publish-floating-text" id="publishFloatingText">发布任务准备中…</div>
-    <div class="publish-floating-sub" id="publishFloatingSub">半自动发布到抖音</div>
+    <div class="publish-floating-sub" id="publishFloatingSub">自动发布到抖音</div>
     <div class="publish-floating-bar"><div class="publish-floating-fill" id="publishFloatingBar"></div></div>
   </div>
   <button class="btn btn-secondary btn-sm" onclick="goPage('page-publish')">查看</button>
@@ -6906,7 +6906,7 @@ function markPublishStatus() {
   toast(status === 'published' ? '✅ 已记录为已发布' : '✅ 已保存为待发布');
 }
 
-/* ---- 半自动发布到抖音（Playwright 子进程） ---- */
+/* ---- 自动发布到抖音（Playwright 子进程） ---- */
 let _publishPollTimer = null;
 let _publishFloatingHideTimer = null;
 
@@ -6974,6 +6974,8 @@ async function autoPublishDouyin() {
     return;
   }
 
+  const publishConsoleWindow = window.open(getCloudPublishConsoleUrl(), '_blank');
+
   const payload = {
     video_url: S.videoUrl,
     title: getPublishTitle(),
@@ -6986,7 +6988,7 @@ async function autoPublishDouyin() {
     btn.textContent = '⏳ 启动中…';
   }
   S.publishRunning = true;
-  setPublishStatusUI({ icon: '⏳', text: '正在启动发布引擎…', pct: 2 });
+  setPublishStatusUI({ icon: '⏳', text: publishConsoleWindow ? '已打开云端发布窗口，正在启动发布引擎…' : '正在启动发布引擎…如未看到新窗口，请手动打开云端发布窗口', pct: 2 });
 
   let taskId;
   try {
@@ -7004,7 +7006,7 @@ async function autoPublishDouyin() {
   } catch (e) {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🤖 半自动发布到抖音';
+      btn.textContent = '🤖 自动发布到抖音';
     }
     S.publishRunning = false;
     setPublishStatusUI({ icon: '❌', text: '启动失败', pct: 0 }, '启动失败: ' + e.message);
@@ -7101,7 +7103,7 @@ async function autoPublishDouyin() {
         S.publishRunning = false;
         if (btn) {
           btn.disabled = false;
-          btn.textContent = '🤖 半自动发布到抖音';
+          btn.textContent = '🤖 自动发布到抖音';
         }
         if (data.status === 'draft_ready' || data.status === 'completed') {
           toast('✅ 发布草稿已就绪，请在浏览器中手动点击发布');
