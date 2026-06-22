@@ -1599,7 +1599,7 @@ textarea { resize: vertical; min-height: 80px; }
 /* ============================================================
    GLOBAL STATE
    ============================================================ */
-const APP_BUILD = '2026-06-18-voice-subtitles-v3';
+const APP_BUILD = '2026-06-22-i2v-oss-subtitle-clean';
 const S = {
   textProviderPreset: 'deepseek',
   textUrl: 'https://api.deepseek.com/v1/chat/completions',
@@ -3089,6 +3089,8 @@ async function importGeneratedImageRecord(record) {
       ...record,
       sourceUrl: record.sourceUrl || record.url,
       url: data.item.url,
+      cloudUrl: data.item.cloudUrl || record.cloudUrl || '',
+      ossKey: data.item.ossKey || record.ossKey || '',
       materialId: data.item.id || record.materialId || '',
       storedName: data.item.storedName || record.storedName || '',
       assetSource: 'ai_image',
@@ -3339,13 +3341,14 @@ async function agent3_generateVideo(selection, copywriting) {
 
 async function agent3_primaryCompose(selection, copywriting) {
   const targetDuration = S.voiceoverPlannedDuration || S.ttsDuration || getTargetVideoDuration(selection);
-  const imageUrls = (S.images || []).map(img => img.url).filter(Boolean);
+  const imageItems = (S.images || []).filter(img => img && (img.url || img.sourceUrl || img.cloudUrl || img.ossKey || img.materialItem?.cloudUrl || img.materialItem?.ossKey));
+  const imageUrls = imageItems.map(img => img.url || img.sourceUrl || img.cloudUrl || img.materialItem?.url || img.materialItem?.cloudUrl).filter(Boolean);
   const errors = [];
 
   if (imageUrls.length && S.wanxKey) {
     try {
       u(3, 'running', '视频合成：正在生成动态视频片段...');
-      const url = await agent3_i2vPrimaryVideo(selection, copywriting, imageUrls, targetDuration);
+      const url = await agent3_i2vPrimaryVideo(selection, copywriting, imageItems, targetDuration);
       S.videoGenerationMode = 'ai-video';
       return url;
     } catch (e) {
@@ -3437,7 +3440,12 @@ function buildSceneSubtitlesForImages(images, plan) {
 }
 
 function sanitizeSubtitleText(value) {
-  const text = String(value || '').trim();
+  const text = String(value || '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFFFC\uFFFD]/g, '')
+    .replace(/[□▯◻◼�]/g, '')
+    .replace(/[^\u4e00-\u9fa5A-Za-z0-9，。！？、；：“”‘’（）《》【】,.!?;:()\[\]\-+/%&·…—\s]/g, '')
+    .trim();
   if (!text) return '';
   const compact = text.replace(/\s+/g, '');
   if (/^(无|不加|无需|没有)?字幕$/i.test(compact)) return '';
@@ -3610,6 +3618,38 @@ function getI2vCloudImageUrl(image) {
   return candidates.find(url => /^https?:\/\//i.test(String(url)) && !isLocalhostUrl(url)) || '';
 }
 
+function isExpiredOssSignedUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''), location.href);
+    const expires = Number(parsed.searchParams.get('Expires') || 0);
+    return !!expires && expires * 1000 < Date.now() + 5 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveI2vCloudImageUrl(image) {
+  const direct = getI2vCloudImageUrl(image);
+  const ossKey = image?.ossKey || image?.materialItem?.ossKey || '';
+  if (direct && (!ossKey || !isExpiredOssSignedUrl(direct))) return direct;
+  if (!ossKey) return '';
+  try {
+    const res = await fetch('/oss/sign?key=' + encodeURIComponent(ossKey), {
+      headers: authHeaders(),
+      signal: S.aborter?.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok && data.url) {
+      image.cloudUrl = data.url;
+      if (image.materialItem) image.materialItem.cloudUrl = data.url;
+      return data.url;
+    }
+  } catch (e) {
+    if (typeof logger !== 'undefined') logger.error(`[i2v oss sign failed] ${e.message || e}`);
+  }
+  return '';
+}
+
 function buildDashScopeI2vInput(model, prompt, imageUrl) {
   return { prompt, img_url: imageUrl };
 }
@@ -3751,7 +3791,7 @@ function isI2vInputShapeError(error) {
   return /input\.media|first_frame|last_frame|driving_audio|first_clip|Field required|InvalidParameter|media/i.test(message);
 }
 
-async function agent3_i2vPrimaryVideo(selection, copywriting, imageUrls, targetDuration) {
+async function agent3_i2vPrimaryVideo(selection, copywriting, imageItems, targetDuration) {
   const model = S.i2vModel || 'wan2.7-i2v';
   const plan = copywriting?.[0] || {};
   const storyboard = getStoryboardScenes(plan);
@@ -3760,10 +3800,14 @@ async function agent3_i2vPrimaryVideo(selection, copywriting, imageUrls, targetD
   const segmentCount = Math.max(1, Math.min(3, Math.ceil(resolvedDuration / singleLimit)));
   const duration = normalizeI2vDuration(resolvedDuration / segmentCount, model);
   const segmentUrls = [];
+  const usableImages = (imageItems || S.images || []).filter(Boolean);
   for (let i = 0; i < segmentCount; i++) {
-    const imageMeta = (S.images || [])[i % Math.max(1, imageUrls.length)] || {};
-    const imageUrl = getI2vCloudImageUrl(imageMeta);
+    const imageMeta = usableImages[i % Math.max(1, usableImages.length)] || {};
+    const imageUrl = await resolveI2vCloudImageUrl(imageMeta);
     if (!imageUrl) {
+      if (typeof logger !== 'undefined') {
+        logger.error(`[i2v primary skipped] image lacks public url scene=${i + 1} url=${String(imageMeta.url || '').slice(0, 120)} sourceUrl=${String(imageMeta.sourceUrl || '').slice(0, 120)} cloudUrl=${!!imageMeta.cloudUrl} ossKey=${!!(imageMeta.ossKey || imageMeta.materialItem?.ossKey)}`);
+      }
       throw new Error('图生视频需要云端可访问的图片地址；当前分镜图片是本地素材/localhost，百炼无法读取。请使用 AI 生图原始图或配置对象存储后再调用 i2v。');
     }
     const sceneIndex = Number.isFinite(Number(imageMeta.sceneIndex)) ? Number(imageMeta.sceneIndex) : i;

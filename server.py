@@ -25,6 +25,7 @@ import sqlite3
 import secrets
 import hmac
 import mimetypes
+import unicodedata
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
 
@@ -1451,15 +1452,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 total = sum(max(0, v) for v in durations) or target_duration
                 durations = [max(0.8, max(0, v) / total * target_duration) for v in durations]
             fps = 15
-            fontfile = ''
-            for candidate in [
-                '/System/Library/Fonts/PingFang.ttc',
-                '/System/Library/Fonts/STHeiti Light.ttc',
-                '/Library/Fonts/Arial Unicode.ttf',
-            ]:
-                if os.path.exists(candidate):
-                    fontfile = candidate
-                    break
+            fontfile = self._find_chinese_font()
 
             cmd = [ffmpeg_exe, '-y']
             for idx, path in enumerate(paths):
@@ -1497,7 +1490,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     f'd={frame_count}:s={width}x{height}:fps={fps},'
                     f'trim=duration={per_image:.3f},setpts=PTS-STARTPTS[{label}base]'
                 )
-                subtitle = (entries[idx].get('subtitle') or '').strip()
+                subtitle = self._clean_subtitle_text(entries[idx].get('subtitle') or '')
                 if subtitle:
                     subtitle = self._compact_subtitle(subtitle)
                 if subtitle:
@@ -1636,7 +1629,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             subtitle_filters = []
             video_out_label = 'vbase'
             if isinstance(raw_subtitles, list):
-                subtitle_texts = [str(item or '').strip() for item in raw_subtitles]
+                subtitle_texts = [self._compact_subtitle(item, max_chars=30) for item in raw_subtitles]
             else:
                 subtitle_texts = []
             if not any(subtitle_texts) and text:
@@ -1827,7 +1820,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     'path': path,
                     'kind': kind,
                     'duration': max(1.0, min(12.0, duration or 3.0)),
-                    'caption': str(clip.get('caption') or clip.get('voiceover') or '')[:120],
+                    'caption': self._clean_subtitle_text(clip.get('caption') or clip.get('voiceover') or '')[:120],
                     'item': item,
                 })
             if not selected:
@@ -1868,7 +1861,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             out_label = 'vbase'
 
             if brand:
-                safe_brand = self._ffmpeg_drawtext_escape(brand[:24])
+                safe_brand = self._ffmpeg_drawtext_escape(self._clean_subtitle_text(brand)[:24])
                 font_path = self._find_chinese_font()
                 font_arg = f":fontfile='{self._ffmpeg_drawtext_escape(font_path)}'" if font_path else ''
                 filters.append(
@@ -2417,8 +2410,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return candidate
         return ''
 
+    def _clean_subtitle_text(self, text):
+        value = unicodedata.normalize('NFKC', str(text or ''))
+        value = re.sub(r'[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFFFC\uFFFD]', '', value)
+        value = re.sub(r'[□▯◻◼�]', '', value)
+        value = re.sub(r'[^\u4e00-\u9fa5A-Za-z0-9，。！？、；：“”‘’（）《》【】,.!?;:()\[\]\-+/%&·…—\s]', '', value)
+        return re.sub(r'\s+', ' ', value).strip()
+
     def _compact_subtitle(self, text, max_chars=28):
-        clean = re.sub(r'\s+', '', str(text or '')).strip()
+        clean = re.sub(r'\s+', '', self._clean_subtitle_text(text)).strip()
         if not clean:
             return ''
         if re.search(r'(无字幕|没有字幕|不加字幕|无需字幕|保留.*尾音|尾音|可为空|空字符串|字幕短句|无需显示|不显示文字|不显示字幕)', clean, re.I):
@@ -2446,7 +2446,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return [clean[:line_chars], clean[line_chars:line_chars * 2]]
 
     def _subtitle_chunks_from_text(self, text, chunk_chars=14, max_chunks=6):
-        clean = re.sub(r'[#@]\S+', '', str(text or ''))
+        clean = re.sub(r'[#@]\S+', '', self._clean_subtitle_text(text))
         clean = re.sub(r'[，,。！？!?；;：:、\s]+', '', clean).strip()
         if not clean:
             return []
