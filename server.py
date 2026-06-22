@@ -37,6 +37,7 @@ LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 AUTH_DB = os.path.join(DATA_DIR, 'app.db')
 APP_SETTINGS_FILE = os.path.join(DATA_DIR, 'app_settings.json')
+PUBLISH_LOCK_FILE = os.path.join(DATA_DIR, 'publish.lock')
 
 DEFAULT_APP_SETTINGS = {
     'textProviderPreset': 'deepseek',
@@ -178,6 +179,17 @@ def _init_auth_db():
             credits_used INTEGER NOT NULL DEFAULT 1,
             task_title TEXT DEFAULT '',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        CREATE TABLE IF NOT EXISTS user_history (
+            id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            payload TEXT NOT NULL,
+            status TEXT DEFAULT '',
+            task_type TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(id, user_id),
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
         ''')
@@ -534,24 +546,52 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 item['cloudUrl'] = signed
         return item
 
-    def _material_dir(self):
-        os.makedirs(MATERIAL_DIR, exist_ok=True)
-        return MATERIAL_DIR
+    def _scope_for_user(self, user=None):
+        user = user or self._current_user()
+        if not user:
+            return 'public'
+        return f"user_{int(user['id'])}"
 
-    def _load_material_index(self):
-        self._material_dir()
-        if not os.path.exists(MATERIAL_INDEX):
+    def _material_dir(self, user=None):
+        user = user or self._current_user()
+        # 旧版本的素材都在 materials/ 根目录。为了不让客户账号看到旧素材，
+        # 只给管理员继续使用根目录；普通账号从自己的子目录开始。
+        if user and user['role'] == 'admin':
+            os.makedirs(MATERIAL_DIR, exist_ok=True)
+            return MATERIAL_DIR
+        path = os.path.join(MATERIAL_DIR, self._scope_for_user(user))
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _material_index_path(self, user=None):
+        return os.path.join(self._material_dir(user), 'index.json')
+
+    def _material_url(self, stored_name, user=None):
+        return f"/material-file/{self._scope_for_user(user)}/{os.path.basename(str(stored_name or ''))}"
+
+    def _load_material_index(self, user=None):
+        index_path = self._material_index_path(user)
+        if not os.path.exists(index_path):
             return []
         try:
-            with open(MATERIAL_INDEX, 'r', encoding='utf-8') as f:
+            with open(index_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return data if isinstance(data, list) else []
+            if not isinstance(data, list):
+                return []
+            owner = self._current_user()
+            owner_id = int(owner['id']) if owner else None
+            for item in data:
+                if isinstance(item, dict):
+                    item.setdefault('ownerUserId', owner_id)
+                    if item.get('storedName'):
+                        item['url'] = self._material_url(item.get('storedName'), owner)
+            return data
         except Exception:
             return []
 
-    def _save_material_index(self, items):
-        self._material_dir()
-        with open(MATERIAL_INDEX, 'w', encoding='utf-8') as f:
+    def _save_material_index(self, items, user=None):
+        index_path = self._material_index_path(user)
+        with open(index_path, 'w', encoding='utf-8') as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
 
     def _extract_image_metadata(self, path):
@@ -605,12 +645,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _add_image_to_materials(self, source_path, image_url='', filename='', tags=None):
         """自动将AI生图加入素材库，避免额度浪费"""
         try:
+            user = self._current_user()
             digest = hashlib.sha256(open(source_path, 'rb').read()).hexdigest()[:16]
             ext = os.path.splitext(source_path)[1].lower() or '.png'
             timestamp = int(time.time())
             safe_name = f'{timestamp}_{digest}{ext}'
-            dest_path = os.path.join(self._material_dir(), safe_name)
-            items = self._load_material_index()
+            dest_path = os.path.join(self._material_dir(user), safe_name)
+            items = self._load_material_index(user)
             existing = next((i for i in items if i.get('id') == digest), None)
             if existing:
                 return existing
@@ -634,7 +675,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'aiTags': list(dict.fromkeys(merged_tags)),
                 'size': size,
                 'createdAt': timestamp,
-                'url': f'/material-file/{safe_name}',
+                'ownerUserId': int(user['id']) if user else None,
+                'url': self._material_url(safe_name, user),
             }
             try:
                 item.update(self._oss_upload_file(dest_path, category='materials'))
@@ -649,7 +691,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 item['orientation'] = metadata.get('orientation')
                 item['dominantColor'] = metadata.get('dominantColor')
             items.insert(0, item)
-            self._save_material_index(items[:200])
+            self._save_material_index(items[:200], user)
             return item
         except Exception:
             return None
@@ -675,12 +717,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._json_response(500, {'ok': False, 'error': str(e)[:200]})
 
     def _materials_list(self):
-        items = self._load_material_index()
+        user = self._current_user()
+        items = self._load_material_index(user)
         changed = False
         for item in items:
             if not item.get('ossKey') and self._oss_config():
                 stored = os.path.basename(str(item.get('storedName') or ''))
-                path = os.path.join(self._material_dir(), stored)
+                path = os.path.join(self._material_dir(user), stored)
                 if stored and os.path.exists(path):
                     try:
                         item.update(self._oss_upload_file(path, category='materials'))
@@ -689,8 +732,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                         item['ossError'] = str(oss_error)[:500]
                         changed = True
             self._refresh_material_cloud_urls(item)
+            if item.get('storedName'):
+                item['url'] = self._material_url(item.get('storedName'), user)
         if changed:
-            self._save_material_index(items[:200])
+            self._save_material_index(items[:200], user)
         self._json_response(200, {'ok': True, 'items': items})
 
     def _material_upload(self):
@@ -716,7 +761,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 ext = '.mp4' if kind == 'video' else '.png' if kind == 'image' else '.bin'
             digest = hashlib.sha256(content).hexdigest()[:16]
             safe_name = f'{int(time.time())}_{digest}{ext}'
-            path = os.path.join(self._material_dir(), safe_name)
+            user = self._current_user()
+            path = os.path.join(self._material_dir(user), safe_name)
             with open(path, 'wb') as f:
                 f.write(content)
             item = {
@@ -730,7 +776,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'aiTags': [],
                 'size': len(content),
                 'createdAt': int(time.time()),
-                'url': f'/material-file/{safe_name}',
+                'ownerUserId': int(user['id']) if user else None,
+                'url': self._material_url(safe_name, user),
             }
             try:
                 item.update(self._oss_upload_file(path, category='materials'))
@@ -751,9 +798,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     item['tags'] = list(dict.fromkeys([*tags, *auto_tags]))
                 except Exception as analysis_error:
                     item['analysisError'] = str(analysis_error)[:500]
-            items = [x for x in self._load_material_index() if x.get('storedName') != safe_name]
+            items = [x for x in self._load_material_index(user) if x.get('storedName') != safe_name]
             items.insert(0, item)
-            self._save_material_index(items[:200])
+            self._save_material_index(items[:200], user)
             self._json_response(200, {'ok': True, 'item': item})
         except Exception as e:
             self._json_response(500, {'ok': False, 'error': str(e)})
@@ -786,11 +833,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     f.write(base64.b64decode(payload))
             elif parsed.path.startswith('/material-file/'):
                 stored = os.path.basename(unquote(parsed.path))
-                existing = next((i for i in self._load_material_index() if i.get('storedName') == stored), None)
+                user = self._current_user()
+                existing = next((i for i in self._load_material_index(user) if i.get('storedName') == stored), None)
                 if existing:
                     self._json_response(200, {'ok': True, 'item': existing, 'deduped': True})
                     return
-                temp_path = os.path.join(self._material_dir(), stored)
+                temp_path = os.path.join(self._material_dir(user), stored)
             elif parsed.scheme in ('http', 'https'):
                 cache_dir = self._video_cache_dir()
                 key = hashlib.sha256(image_url.encode('utf-8')).hexdigest()[:16]
@@ -861,7 +909,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 manual_tags = []
             note = str(data.get('note') or '')[:500]
-            items = self._load_material_index()
+            user = self._current_user()
+            items = self._load_material_index(user)
             updated = None
             for item in items:
                 if item.get('storedName') == stored:
@@ -877,7 +926,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     break
             if not updated:
                 raise FileNotFoundError('素材不存在')
-            self._save_material_index(items)
+            self._save_material_index(items, user)
             self._json_response(200, {'ok': True, 'item': updated})
         except Exception as e:
             self._json_response(500, {'ok': False, 'error': str(e)})
@@ -890,20 +939,27 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             stored = os.path.basename(str(data.get('storedName') or ''))
             if not stored:
                 raise ValueError('缺少素材文件名')
-            items = self._load_material_index()
+            user = self._current_user()
+            items = self._load_material_index(user)
             next_items = [x for x in items if x.get('storedName') != stored]
-            path = os.path.join(self._material_dir(), stored)
+            path = os.path.join(self._material_dir(user), stored)
             if os.path.exists(path):
                 os.remove(path)
-            self._save_material_index(next_items)
+            self._save_material_index(next_items, user)
             self._json_response(200, {'ok': True})
         except Exception as e:
             self._json_response(500, {'ok': False, 'error': str(e)})
 
     def _material_file(self):
         from urllib.parse import urlparse, unquote
-        filename = os.path.basename(unquote(urlparse(self.path).path))
-        path = os.path.join(self._material_dir(), filename)
+        parsed_path = unquote(urlparse(self.path).path)
+        parts = [p for p in parsed_path.split('/') if p]
+        filename = os.path.basename(parts[-1] if parts else '')
+        scope = parts[-2] if len(parts) >= 3 else ''
+        if scope.startswith('user_') and scope != 'user_1':
+            path = os.path.join(MATERIAL_DIR, scope, filename)
+        else:
+            path = os.path.join(MATERIAL_DIR, filename)
         if not os.path.exists(path):
             self.send_error(404, 'Material not found')
             return
@@ -2807,6 +2863,9 @@ boot();
 
     def _publish_status(self):
         """GET /publish/status?task_id=xxx 查询发布任务状态"""
+        user = self._require_user()
+        if not user:
+            return
         from urllib.parse import urlparse, parse_qs
         query = parse_qs(urlparse(self.path).query)
         task_id = query.get('task_id', [None])[0]
@@ -2831,12 +2890,19 @@ boot();
         try:
             with open(status_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            owner_id = data.get('user_id')
+            if owner_id and int(owner_id) != int(user['id']) and user['role'] != 'admin':
+                self._json_response(403, {'error': '无权查看该发布任务'})
+                return
             self._json_response(200, data)
         except Exception as e:
             self._json_response(500, {'error': str(e)})
 
     def _publish_douyin_draft(self):
         """POST /publish/douyin-draft  启动抖音草稿发布子进程"""
+        user = self._require_user()
+        if not user:
+            return
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             raw = self.rfile.read(content_length) if content_length > 0 else b'{}'
@@ -2865,8 +2931,15 @@ boot();
             })
             return
 
+        if self._publish_lock_active():
+            self._json_response(409, {
+                'error': '当前已有用户正在使用云端发布窗口。请等对方发布完成后再试。',
+            })
+            return
+
         # 生成任务 ID
         task_id = f'douyin_{int(time.time())}_{os.urandom(4).hex()}'
+        profile_key = self._scope_for_user(user)
         script_dir = os.path.dirname(os.path.abspath(__file__))
         publisher_script = os.path.join(script_dir, 'douyin_publisher.py')
 
@@ -2879,6 +2952,7 @@ boot();
             '--title', title,
             '--body', body,
             '--hashtags', hashtags,
+            '--profile-key', profile_key,
         ]
         xvfb_exe = shutil.which('xvfb-run')
         if not os.environ.get('DISPLAY') and xvfb_exe:
@@ -2899,10 +2973,13 @@ boot();
             with open(status_path, 'w', encoding='utf-8') as f:
                 json.dump({
                     'task_id': task_id,
+                    'user_id': int(user['id']),
+                    'profile_key': profile_key,
                     'status': 'queued',
                     'message': '发布任务已创建，正在启动浏览器',
                     'updated_at': time.time(),
                 }, f, ensure_ascii=False, indent=2)
+            self._write_publish_lock(task_id, user)
             log_file = open(log_path, 'a', encoding='utf-8')
             child_env = os.environ.copy()
             child_env.setdefault(
@@ -2934,6 +3011,46 @@ boot();
             'status_endpoint': f'/publish/status?task_id={task_id}',
             'log_path': log_path,
         })
+
+    def _publish_lock_active(self):
+        if not os.path.exists(PUBLISH_LOCK_FILE):
+            return False
+        try:
+            with open(PUBLISH_LOCK_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            task_id = data.get('task_id')
+            created_at = float(data.get('created_at') or 0)
+            if time.time() - created_at > 30 * 60:
+                os.remove(PUBLISH_LOCK_FILE)
+                return False
+            status_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'publish_tasks', f'{task_id}.json')
+            if os.path.exists(status_path):
+                with open(status_path, 'r', encoding='utf-8') as f:
+                    status_data = json.load(f)
+                status = str(status_data.get('status') or '')
+                if status in ('failed', 'login_failed', 'login_timeout', 'login_cancelled', 'publish_button_user_not_visible', 'completed', 'published'):
+                    try:
+                        os.remove(PUBLISH_LOCK_FILE)
+                    except Exception:
+                        pass
+                    return False
+            return True
+        except Exception:
+            try:
+                os.remove(PUBLISH_LOCK_FILE)
+            except Exception:
+                pass
+            return False
+
+    def _write_publish_lock(self, task_id, user):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(PUBLISH_LOCK_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                'task_id': task_id,
+                'user_id': int(user['id']),
+                'email': user['email'],
+                'created_at': time.time(),
+            }, f, ensure_ascii=False, indent=2)
 
     def _cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')

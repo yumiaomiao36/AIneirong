@@ -1670,7 +1670,7 @@ const S = {
   mixIncludeTags: [],
   mixExcludeTags: [],
   mixPreview: null,
-  tagLibrary: JSON.parse(localStorage.getItem('agentflow_tag_library') || '[]'),
+  tagLibrary: [],
   tagEditorStoredName: '',
   qaReport: null,
   jimengRawResult: null,
@@ -1721,6 +1721,7 @@ async function loginUser() {
     S.authToken = data.token;
     S.currentUser = data.user;
     localStorage.setItem('agentflow_auth_token', S.authToken);
+    loadUserLocalState();
     await loadServerSettings();
     renderAuthState();
     toast('✅ 登录成功');
@@ -1735,6 +1736,7 @@ async function logoutUser() {
   } catch {}
   S.authToken = '';
   S.currentUser = null;
+  S.tagLibrary = [];
   localStorage.removeItem('agentflow_auth_token');
   renderAuthState();
 }
@@ -1749,6 +1751,7 @@ async function refreshCurrentUser() {
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || '登录已失效');
     S.currentUser = data.user;
+    loadUserLocalState();
     await loadServerSettings();
     renderAuthState();
     return data.user;
@@ -1772,6 +1775,27 @@ function renderAuthState() {
     const u = S.currentUser;
     box.innerHTML = `<strong>${esc(u.nickname || u.email)}</strong><div>剩余次数：${u.remainingCredits ?? 0}</div><div style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="logoutUser()">退出</button></div>`;
   }
+}
+
+function userStorageSuffix() {
+  return S.currentUser?.id ? `user_${S.currentUser.id}` : 'anonymous';
+}
+
+function userStorageKey(base) {
+  return `${base}_${userStorageSuffix()}`;
+}
+
+function loadUserLocalState() {
+  const tagKey = userStorageKey('agentflow_tag_library');
+  if (S.currentUser?.role === 'admin' && !localStorage.getItem(tagKey) && localStorage.getItem('agentflow_tag_library')) {
+    localStorage.setItem(tagKey, localStorage.getItem('agentflow_tag_library'));
+  }
+  const historyKey = userStorageKey('agentflow_history_v1');
+  if (S.currentUser?.role === 'admin' && !localStorage.getItem(historyKey) && localStorage.getItem('agentflow_history_v1')) {
+    localStorage.setItem(historyKey, localStorage.getItem('agentflow_history_v1'));
+  }
+  try { S.tagLibrary = JSON.parse(localStorage.getItem(tagKey) || '[]') || []; }
+  catch { S.tagLibrary = []; }
 }
 
 async function consumeGenerationCredit(taskTitle = '') {
@@ -5491,7 +5515,7 @@ function splitTags(text) {
 
 function saveTagLibrary() {
   S.tagLibrary = [...new Set((S.tagLibrary || []).map(t => String(t || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  localStorage.setItem('agentflow_tag_library', JSON.stringify(S.tagLibrary));
+  localStorage.setItem(userStorageKey('agentflow_tag_library'), JSON.stringify(S.tagLibrary));
 }
 
 function renderTagLibrary() {
@@ -6465,6 +6489,10 @@ function downloadDeliverable(record) {
    ============================================================ */
 const HISTORY_KEY = 'agentflow_history_v1';
 
+function historyStorageKey() {
+  return userStorageKey(HISTORY_KEY);
+}
+
 function buildTaskRecord(status = 'generated') {
   return {
     id: S.currentTaskId || `task_${Date.now()}`,
@@ -6511,7 +6539,7 @@ function buildTaskRecord(status = 'generated') {
 }
 
 function getHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  try { return JSON.parse(localStorage.getItem(historyStorageKey())) || []; }
   catch { return []; }
 }
 
@@ -6521,7 +6549,7 @@ function saveTaskToHistory(status = 'generated') {
   S.currentTaskId = record.id;
   const list = getHistory().filter(item => item.id !== record.id);
   list.unshift(record);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 50)));
+  localStorage.setItem(historyStorageKey(), JSON.stringify(list.slice(0, 50)));
   return record;
 }
 
@@ -6628,14 +6656,14 @@ function setHistoryTab(tab) {
 }
 
 function deleteHistoryTask(id) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(getHistory().filter(item => item.id !== id)));
+  localStorage.setItem(historyStorageKey(), JSON.stringify(getHistory().filter(item => item.id !== id)));
   renderHistory();
   toast('已删除历史任务');
 }
 
 function clearHistory() {
   if (!confirm('确定清空全部历史任务吗？')) return;
-  localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem(historyStorageKey());
   renderHistory();
   toast('历史任务已清空');
 }

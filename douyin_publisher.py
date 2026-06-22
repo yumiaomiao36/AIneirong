@@ -18,6 +18,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -28,20 +29,30 @@ from playwright.sync_api import sync_playwright, TimeoutError as PwTimeoutError
 PROJECT_DIR = Path(__file__).parent.resolve()
 TASKS_DIR = PROJECT_DIR / 'publish_tasks'
 # Playwright 持久化用户目录，复用登录态
-USER_DATA_DIR = PROJECT_DIR / '.playwright_profile' / 'douyin'
+DEFAULT_USER_DATA_DIR = PROJECT_DIR / '.playwright_profile' / 'douyin'
 RUN_USER_DATA_ROOT = PROJECT_DIR / '.playwright_profile' / 'douyin_runs'
+USER_DATA_DIR = DEFAULT_USER_DATA_DIR
 
 
 def write_status(task_id: str, status: str, **kwargs):
     """写入任务状态 JSON 文件，供 server.py 的 /publish/status 端点读取。"""
     TASKS_DIR.mkdir(parents=True, exist_ok=True)
+    status_path = TASKS_DIR / f'{task_id}.json'
+    previous = {}
+    try:
+        if status_path.exists():
+            with open(status_path, 'r', encoding='utf-8') as f:
+                previous = json.load(f)
+    except Exception:
+        previous = {}
     data = {
+        **previous,
         'task_id': task_id,
         'status': status,
         'updated_at': time.time(),
         **kwargs
     }
-    with open(TASKS_DIR / f'{task_id}.json', 'w', encoding='utf-8') as f:
+    with open(status_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f'[STATUS] {status}' + (f' | {kwargs}' if kwargs else ''))
 
@@ -318,24 +329,25 @@ def mark_profile_clean(user_data_dir: Path):
             continue
 
 
+def ignore_profile_noise(_dir, names):
+    ignored = set()
+    prefixes = (
+        'Singleton', 'Crashpad', 'BrowserMetrics', 'ShaderCache',
+        'GrShaderCache', 'GraphiteDawnCache', 'GPUCache', 'Code Cache',
+        'DawnCache', 'Cache', 'component_crx_cache',
+    )
+    for name in names:
+        if name.startswith(prefixes):
+            ignored.add(name)
+    return ignored
+
+
 def copy_profile_for_task(task_id: str) -> Path:
     """Use an isolated profile when the shared profile is already open."""
     RUN_USER_DATA_ROOT.mkdir(parents=True, exist_ok=True)
     task_profile = RUN_USER_DATA_ROOT / task_id
     if task_profile.exists():
         shutil.rmtree(task_profile, ignore_errors=True)
-
-    def ignore_profile_noise(_dir, names):
-        ignored = set()
-        prefixes = (
-            'Singleton', 'Crashpad', 'BrowserMetrics', 'ShaderCache',
-            'GrShaderCache', 'GraphiteDawnCache', 'GPUCache', 'Code Cache',
-            'DawnCache', 'Cache', 'component_crx_cache',
-        )
-        for name in names:
-            if name.startswith(prefixes):
-                ignored.add(name)
-        return ignored
 
     if USER_DATA_DIR.exists():
         try:
@@ -345,6 +357,19 @@ def copy_profile_for_task(task_id: str) -> Path:
     else:
         task_profile.mkdir(parents=True, exist_ok=True)
     return task_profile
+
+
+def migrate_default_profile_for_admin(profile_key: str):
+    """Keep the original admin Douyin login after enabling per-user profiles."""
+    if profile_key != 'user_1':
+        return
+    if USER_DATA_DIR.exists() or not DEFAULT_USER_DATA_DIR.exists():
+        return
+    try:
+        USER_DATA_DIR.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(DEFAULT_USER_DATA_DIR, USER_DATA_DIR, ignore=ignore_profile_noise)
+    except Exception:
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def launch_publish_context(p, task_id: str):
@@ -2023,12 +2048,14 @@ def _append_first_visible(page, selectors, value, delay=20) -> bool:
 
 
 def main():
+    global USER_DATA_DIR
     parser = argparse.ArgumentParser(description='抖音创作者中心半自动发布器')
     parser.add_argument('--task-id', required=True, help='任务 ID')
     parser.add_argument('--video-path', required=True, help='视频文件绝对路径')
     parser.add_argument('--title', default='', help='视频标题')
     parser.add_argument('--body', default='', help='视频描述')
     parser.add_argument('--hashtags', default='', help='话题标签，逗号分隔')
+    parser.add_argument('--profile-key', default='user_1', help='系统账号隔离用的浏览器 profile key')
     args = parser.parse_args()
 
     task_id = args.task_id
@@ -2047,8 +2074,12 @@ def main():
                      message='标题和正文均为空，仅上传视频。'
                              '如需在服务端自动填写，请在前端编辑后重新发布。')
 
-    write_status(task_id, 'starting', video=video_path, title=title)
+    profile_key = re.sub(r'[^a-zA-Z0-9_-]+', '_', str(args.profile_key or 'user_1')).strip('_') or 'user_1'
+    USER_DATA_DIR = PROJECT_DIR / '.playwright_profile' / 'douyin_users' / profile_key
 
+    write_status(task_id, 'starting', video=video_path, title=title, profile_key=profile_key)
+
+    migrate_default_profile_for_admin(profile_key)
     USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
