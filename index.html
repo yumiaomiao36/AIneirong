@@ -568,7 +568,7 @@ textarea { resize: vertical; min-height: 80px; }
   <div class="sidebar" id="sidebar">
     <div class="sidebar-logo"><span class="lg">🎬</span> AI内容成片</div>
     <div class="sidebar-nav">
-      <div class="sidebar-item active" data-page="page-select" onclick="goPage('page-select')"><span class="si-icon">➕</span>新建内容</div>
+      <div class="sidebar-item active" data-page="page-select" onclick="startNewContent()"><span class="si-icon">➕</span>新建内容</div>
       <div class="sidebar-item" data-page="page-materials" onclick="loadMaterials();goPage('page-materials')"><span class="si-icon">📁</span>素材库</div>
       <div class="sidebar-item" data-page="page-mix" onclick="openMixPage()"><span class="si-icon">🎞️</span>素材混剪</div>
       <div class="sidebar-item" data-page="page-history" onclick="renderHistory();goPage('page-history')"><span class="si-icon">🕐</span>历史任务</div>
@@ -1777,6 +1777,30 @@ function renderAuthState() {
   }
 }
 
+const CONTENT_FORM_FIELDS = [
+  'brandName', 'brandTagline', 'niche', 'reference', 'topic', 'contentDesc', 'extraDesc',
+];
+const CONTENT_SELECT_DEFAULTS = {
+  platform: '',
+  contentType: '',
+  tone: '',
+  audience: '',
+  copyCount: '3',
+  wordLimit: '中',
+  contentVideoDuration: '15',
+};
+const CONTENT_STATE_KEYS = [
+  'brandName', 'brandTagline', 'niche', 'reference', 'platform', 'contentType', 'topic',
+  'contentDesc', 'tone', 'audience', 'features', 'extraDesc', 'copyCount', 'wordLimit',
+  'copywriting', 'planApproved', 'selectedPlanIndex', 'images', 'videoUrl', 'sourceVideoUrl',
+  'sourceVideoHasAudio', 'sourceVideoDuration', 'sourceVideoWidth', 'sourceVideoHeight',
+  'previewAspect', 'videoGenerationMode', 'confirmedCopyText', 'ttsAudioUrl', 'ttsDuration',
+  'ttsCharCount', 'voiceoverPlannedDuration', 'voiceoverText', 'voicedVideoUrl', 'pexelsLast',
+  'materialPlan', 'sceneAssetPlan', 'sceneImagePromptsOverride', 'mixPreview', 'qaReport',
+  'jimengRawResult', 'jimengVideoCandidates', 'lastError', 'currentTaskId', 'currentRunId',
+  'publishTaskId', 'publishRunning',
+];
+
 function userStorageSuffix() {
   return S.currentUser?.id ? `user_${S.currentUser.id}` : 'anonymous';
 }
@@ -1796,6 +1820,50 @@ function loadUserLocalState() {
   }
   try { S.tagLibrary = JSON.parse(localStorage.getItem(tagKey) || '[]') || []; }
   catch { S.tagLibrary = []; }
+}
+
+function stripContentDraftFields(config = {}) {
+  const clean = { ...(config || {}) };
+  for (const key of CONTENT_STATE_KEYS) delete clean[key];
+  delete clean.customVideoDuration;
+  delete clean.features;
+  return clean;
+}
+
+function resetNewContentForm() {
+  for (const id of CONTENT_FORM_FIELDS) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  }
+  for (const [id, value] of Object.entries(CONTENT_SELECT_DEFAULTS)) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  }
+  document.querySelectorAll('#featureTags .tag.selected').forEach(t => t.classList.remove('selected'));
+  Object.assign(S, {
+    brandName: '', brandTagline: '', niche: '', reference: '',
+    platform: '', contentType: '', topic: '', contentDesc: '', tone: '',
+    audience: '', features: [], extraDesc: '', copyCount: 3, wordLimit: '中',
+    copywriting: [], planApproved: false, selectedPlanIndex: 0,
+    images: [], videoUrl: null, sourceVideoUrl: null, sourceVideoHasAudio: null,
+    sourceVideoDuration: null, sourceVideoWidth: null, sourceVideoHeight: null,
+    previewAspect: 'auto', videoGenerationMode: '', confirmedCopyText: '',
+    ttsAudioUrl: null, ttsDuration: null, ttsCharCount: null,
+    voiceoverPlannedDuration: null, voiceoverText: '', voicedVideoUrl: null,
+    pexelsLast: null, materialPlan: null, sceneAssetPlan: null,
+    sceneImagePromptsOverride: null, mixPreview: null, qaReport: null,
+    jimengRawResult: null, jimengVideoCandidates: [], lastError: null,
+    currentTaskId: null, currentRunId: '', publishTaskId: null, publishRunning: false,
+  });
+  const duration = document.getElementById('contentVideoDuration');
+  if (duration) duration.value = '15';
+  if (document.getElementById('customVideoDuration')) document.getElementById('customVideoDuration').value = '15';
+  toggleCustomDuration();
+}
+
+function startNewContent() {
+  resetNewContentForm();
+  goPage('page-select');
 }
 
 async function consumeGenerationCredit(taskTitle = '') {
@@ -2198,9 +2266,6 @@ function persistConfig(showToast = false) {
     jimengKey: S.jimengKey, imgJimengModel: S.imgJimengModel, imgJimengSize: S.imgJimengSize,
     vidProvider: S.vidProvider, pexelsKey: S.pexelsKey, agnesKey: S.agnesKey, agnesModel: S.agnesModel, agnesAspect: S.agnesAspect,
     vidJimengModel: S.vidJimengModel, vidJimengDuration: S.vidJimengDuration,
-    brandName: S.brandName, brandTagline: S.brandTagline, niche: S.niche, reference: S.reference,
-    platform: S.platform, contentType: S.contentType, topic: S.topic, contentDesc: S.contentDesc, tone: S.tone,
-    audience: S.audience, features: S.features, extraDesc: S.extraDesc, copyCount: S.copyCount, wordLimit: S.wordLimit,
   }));
   if (showToast) toast('✅ 配置已保存');
 }
@@ -2282,7 +2347,8 @@ async function previewVoice(voice) {
 
 function loadConfig() {
   try {
-    const c = JSON.parse(localStorage.getItem('agentflow_config'));
+    const raw = JSON.parse(localStorage.getItem('agentflow_config'));
+    const c = stripContentDraftFields(raw);
     if (!c) return;
     Object.assign(S, c);
     document.getElementById('textProviderPreset').value = c.textProviderPreset || (String(c.textUrl || '').includes('dashscope') ? 'qwen' : 'deepseek');
@@ -2308,19 +2374,7 @@ function loadConfig() {
     toggleCustomDuration();
     const resolvedLoadedDuration = loadedDuration;
     document.getElementById('vidDuration').value = Number(resolvedLoadedDuration) > 10 ? '10' : resolvedLoadedDuration;
-    if (c.brandName) document.getElementById('brandName').value = c.brandName;
-    if (c.brandTagline) document.getElementById('brandTagline').value = c.brandTagline;
-    if (c.niche) document.getElementById('niche').value = c.niche;
-    if (c.reference) document.getElementById('reference').value = c.reference;
-  if (c.platform) document.getElementById('platform').value = c.platform;
-    if (c.contentType) document.getElementById('contentType').value = c.contentType;
-    if (c.topic) document.getElementById('topic').value = c.topic;
-    if (c.contentDesc) document.getElementById('contentDesc').value = c.contentDesc;
-    if (c.tone) document.getElementById('tone').value = c.tone;
-    if (c.audience) document.getElementById('audience').value = c.audience;
-    if (c.extraDesc) document.getElementById('extraDesc').value = c.extraDesc;
-    if (c.copyCount) document.getElementById('copyCount').value = String(c.copyCount);
-    if (c.wordLimit) document.getElementById('wordLimit').value = c.wordLimit;
+    resetNewContentForm();
     if (c.imgProvider) { document.getElementById('imgProvider').value = c.imgProvider; toggleImgProvider(); }
     if (c.agnesImageKey || c.agnesKey) document.getElementById('agnesImageKey').value = c.agnesImageKey || c.agnesKey;
     if (c.agnesImageModel) {
