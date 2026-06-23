@@ -2431,6 +2431,7 @@ function applyServerSettings(settings = {}) {
   setVal('i2vModel', c.i2vModel);
   setVal('publicMaterialProvider', c.publicMaterialProvider || 'off');
   setVal('publicMaterialPolicy', c.publicMaterialPolicy || 'local_first');
+  S.publishConsoleUrl = String(c.publishConsoleUrl || '').trim();
   const localMode = document.getElementById('localStoryboardMode');
   if (localMode) localMode.checked = !!c.localStoryboardMode;
   syncVoiceSelects(c.voice || S.voice || 'longanyang');
@@ -6163,13 +6164,17 @@ async function uploadMaterials() {
     row.innerHTML = `<span class="name">${esc(file.name)}</span><span>${esc(text)}</span>`;
     log.prepend(row);
   };
+  const uploadTimeoutMs = 180000;
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), uploadTimeoutMs);
     try {
       setProgress(i, file, S.visionKey ? '正在上传并识别' : '正在上传');
       addLog(file, 'running', S.visionKey ? '上传/识别中' : '上传中');
       const dataUrl = await fileToDataUrl(file);
+      setProgress(i, file, S.visionKey ? '已读取，正在入库识别' : '已读取，正在入库');
       const res = await fetch('/material-upload', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -6182,6 +6187,7 @@ async function uploadMaterials() {
           visionModel: S.visionModel,
           visionUrl: S.visionUrl,
         }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || `上传失败 HTTP ${res.status}`);
@@ -6191,7 +6197,10 @@ async function uploadMaterials() {
     } catch (e) {
       failed++;
       setProgress(i + 1, file, '失败');
-      addLog(file, 'err', e.message);
+      const message = e.name === 'AbortError' ? '处理超时，请稍后刷新素材库确认是否已入库；未入库可重新上传' : e.message;
+      addLog(file, 'err', message);
+    } finally {
+      clearTimeout(timeout);
     }
   }
   input.value = '';
@@ -7054,6 +7063,7 @@ function finishPublishStatusUI(delay = 30000) {
 }
 
 function getCloudPublishConsoleUrl() {
+  if (S.publishConsoleUrl) return S.publishConsoleUrl;
   const { protocol, hostname, port, origin } = window.location;
   const query = 'vnc.html?autoconnect=true&resize=scale&shared=true';
   if (protocol === 'http:') return `${protocol}//${hostname}:6080/${query}`;

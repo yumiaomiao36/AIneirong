@@ -26,6 +26,7 @@ import secrets
 import hmac
 import mimetypes
 import unicodedata
+import socket
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
 
@@ -65,6 +66,7 @@ DEFAULT_APP_SETTINGS = {
     'ossEndpoint': '',
     'ossPrefix': 'agent-workflow',
     'ossUrlExpires': '7200',
+    'publishConsoleUrl': '',
 }
 
 # 日志系统初始化
@@ -975,7 +977,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             shutil.copyfileobj(f, self.wfile, length=1024 * 512)
 
     def _analyze_material_with_vision(self, path, kind, api_key, model, api_url):
-        images = [path] if kind == 'image' else self._extract_video_frames(path, max_frames=3)
+        images = [path] if kind == 'image' else self._extract_video_frames(path, max_frames=1)
         if not images:
             raise RuntimeError('没有可识别的图片帧')
         content = [{
@@ -1010,11 +1012,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         )
         ctx = ssl._create_unverified_context()
         try:
-            with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
+            with urllib.request.urlopen(req, context=ctx, timeout=45) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             detail = e.read().decode('utf-8', errors='replace')
             raise RuntimeError(f'素材视觉识别失败 HTTP {e.code}: {detail[:500]}')
+        except (TimeoutError, socket.timeout):
+            raise RuntimeError('素材视觉识别超时')
         text = data.get('choices', [{}])[0].get('message', {}).get('content', '')
         parsed = self._parse_json_from_text(text)
         return {
@@ -1027,7 +1031,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'model': model,
         }
 
-    def _extract_video_frames(self, path, max_frames=3):
+    def _extract_video_frames(self, path, max_frames=1):
         try:
             import imageio_ffmpeg
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
@@ -1047,7 +1051,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         for idx, second in enumerate(points[:max_frames]):
             frame_path = os.path.join(cache_dir, f'material_frame_{key}_{idx}.jpg')
             cmd = [ffmpeg_exe, '-y', '-ss', f'{second:.2f}', '-i', path, '-frames:v', '1', '-q:v', '3', frame_path]
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
             if res.returncode == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 512:
                 frame_paths.append(frame_path)
         return frame_paths
@@ -2689,6 +2693,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1p
         <div class="field span2"><label>OSS Endpoint</label><input id="cfgOssEndpoint" placeholder="oss-cn-hangzhou.aliyuncs.com"></div>
         <div class="field"><label>OSS 路径前缀</label><input id="cfgOssPrefix" placeholder="agent-workflow"></div>
         <div class="field"><label>签名 URL 有效期（秒）</label><input id="cfgOssUrlExpires" placeholder="7200"></div>
+        <div class="field span2"><label>云端发布窗口地址</label><input id="cfgPublishConsoleUrl" placeholder="例如：http://你的域名或IP:6080/vnc.html?autoconnect=true&resize=scale&shared=true"></div>
         <label class="field span2" style="display:flex;align-items:center;gap:8px"><input id="cfgLocalStoryboardMode" type="checkbox" style="width:auto"> <span>跳过文案模型，使用本地测试分镜</span></label>
       </div>
       <div class="actions" style="margin-top:12px"><button onclick="saveSettings()">保存系统配置</button><button class="gray" onclick="loadSettings()">重新读取</button><span class="muted" id="settingsMsg"></span></div>
@@ -2724,8 +2729,8 @@ async function login(){try{const d=await api('/auth/login',{method:'POST',header
 async function logout(){localStorage.removeItem('agentflow_auth_token');token='';location.reload()}
 function showAdminSection(name){const isSettings=name==='settings';el('sectionSettings').classList.toggle('active',isSettings);el('sectionAccounts').classList.toggle('active',!isSettings);el('navSettings').classList.toggle('active',isSettings);el('navAccounts').classList.toggle('active',!isSettings)}
 async function boot(){try{const me=await api('/auth/me');if(me.user.role!=='admin')throw new Error('不是管理员账号');el('login').style.display='none';el('app').style.display='block';await loadSettings();await loadUsers();await loadUsage()}catch(e){el('app').style.display='none';el('login').style.display='block'}}
-function fillSettings(s){el('cfgTextProviderPreset').value=s.textProviderPreset||'deepseek';el('cfgTextUrl').value=s.textUrl||'';el('cfgTextKey').value=s.textKey||'';el('cfgTextModel').value=s.textModel||'deepseek-chat';el('cfgVisionKey').value=s.visionKey||'';el('cfgVisionModel').value=s.visionModel||'qwen3.6-35b-a3b';el('cfgVisionUrl').value=s.visionUrl||'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';el('cfgWanxKey').value=s.wanxKey||'';el('cfgImgProvider').value=s.imgProvider||'bailian';el('cfgImgModel').value=s.imgModel||'wanx-v1';el('cfgImgSize').value=s.imgSize||'1024*1024';el('cfgI2vModel').value=s.i2vModel==='wan2.6-i2v'?'wan2.7-i2v':(s.i2vModel||'wan2.7-i2v');el('cfgVoice').value=s.voice||'longanyang';el('cfgPublicMaterialProvider').value=s.publicMaterialProvider||'off';el('cfgPublicMaterialPolicy').value=s.publicMaterialPolicy||'local_first';el('cfgOssEnabled').checked=!!s.ossEnabled;el('cfgOssAccessKeyId').value=s.ossAccessKeyId||'';el('cfgOssAccessKeySecret').value=s.ossAccessKeySecret||'';el('cfgOssBucket').value=s.ossBucket||'';el('cfgOssRegion').value=s.ossRegion||'';el('cfgOssEndpoint').value=s.ossEndpoint||'';el('cfgOssPrefix').value=s.ossPrefix||'agent-workflow';el('cfgOssUrlExpires').value=s.ossUrlExpires||'7200';el('cfgLocalStoryboardMode').checked=!!s.localStoryboardMode}
-function readSettings(){return{textProviderPreset:el('cfgTextProviderPreset').value,textUrl:el('cfgTextUrl').value,textKey:el('cfgTextKey').value,textModel:el('cfgTextModel').value,visionKey:el('cfgVisionKey').value,visionModel:el('cfgVisionModel').value,visionUrl:el('cfgVisionUrl').value,wanxKey:el('cfgWanxKey').value,imgProvider:el('cfgImgProvider').value,imgModel:el('cfgImgModel').value,imgSize:el('cfgImgSize').value,i2vModel:el('cfgI2vModel').value,voice:el('cfgVoice').value,publicMaterialProvider:el('cfgPublicMaterialProvider').value,publicMaterialPolicy:el('cfgPublicMaterialPolicy').value,ossEnabled:el('cfgOssEnabled').checked,ossAccessKeyId:el('cfgOssAccessKeyId').value,ossAccessKeySecret:el('cfgOssAccessKeySecret').value,ossBucket:el('cfgOssBucket').value,ossRegion:el('cfgOssRegion').value,ossEndpoint:el('cfgOssEndpoint').value,ossPrefix:el('cfgOssPrefix').value,ossUrlExpires:el('cfgOssUrlExpires').value,localStoryboardMode:el('cfgLocalStoryboardMode').checked}}
+function fillSettings(s){el('cfgTextProviderPreset').value=s.textProviderPreset||'deepseek';el('cfgTextUrl').value=s.textUrl||'';el('cfgTextKey').value=s.textKey||'';el('cfgTextModel').value=s.textModel||'deepseek-chat';el('cfgVisionKey').value=s.visionKey||'';el('cfgVisionModel').value=s.visionModel||'qwen3.6-35b-a3b';el('cfgVisionUrl').value=s.visionUrl||'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';el('cfgWanxKey').value=s.wanxKey||'';el('cfgImgProvider').value=s.imgProvider||'bailian';el('cfgImgModel').value=s.imgModel||'wanx-v1';el('cfgImgSize').value=s.imgSize||'1024*1024';el('cfgI2vModel').value=s.i2vModel==='wan2.6-i2v'?'wan2.7-i2v':(s.i2vModel||'wan2.7-i2v');el('cfgVoice').value=s.voice||'longanyang';el('cfgPublicMaterialProvider').value=s.publicMaterialProvider||'off';el('cfgPublicMaterialPolicy').value=s.publicMaterialPolicy||'local_first';el('cfgOssEnabled').checked=!!s.ossEnabled;el('cfgOssAccessKeyId').value=s.ossAccessKeyId||'';el('cfgOssAccessKeySecret').value=s.ossAccessKeySecret||'';el('cfgOssBucket').value=s.ossBucket||'';el('cfgOssRegion').value=s.ossRegion||'';el('cfgOssEndpoint').value=s.ossEndpoint||'';el('cfgOssPrefix').value=s.ossPrefix||'agent-workflow';el('cfgOssUrlExpires').value=s.ossUrlExpires||'7200';el('cfgPublishConsoleUrl').value=s.publishConsoleUrl||'';el('cfgLocalStoryboardMode').checked=!!s.localStoryboardMode}
+function readSettings(){return{textProviderPreset:el('cfgTextProviderPreset').value,textUrl:el('cfgTextUrl').value,textKey:el('cfgTextKey').value,textModel:el('cfgTextModel').value,visionKey:el('cfgVisionKey').value,visionModel:el('cfgVisionModel').value,visionUrl:el('cfgVisionUrl').value,wanxKey:el('cfgWanxKey').value,imgProvider:el('cfgImgProvider').value,imgModel:el('cfgImgModel').value,imgSize:el('cfgImgSize').value,i2vModel:el('cfgI2vModel').value,voice:el('cfgVoice').value,publicMaterialProvider:el('cfgPublicMaterialProvider').value,publicMaterialPolicy:el('cfgPublicMaterialPolicy').value,ossEnabled:el('cfgOssEnabled').checked,ossAccessKeyId:el('cfgOssAccessKeyId').value,ossAccessKeySecret:el('cfgOssAccessKeySecret').value,ossBucket:el('cfgOssBucket').value,ossRegion:el('cfgOssRegion').value,ossEndpoint:el('cfgOssEndpoint').value,ossPrefix:el('cfgOssPrefix').value,ossUrlExpires:el('cfgOssUrlExpires').value,publishConsoleUrl:el('cfgPublishConsoleUrl').value,localStoryboardMode:el('cfgLocalStoryboardMode').checked}}
 async function loadSettings(){try{const d=await api('/api/admin/settings');fillSettings(d.settings||{});el('settingsMsg').textContent='已读取'}catch(e){el('settingsMsg').textContent=e.message}}
 async function saveSettings(){try{const d=await api('/api/admin/settings',{method:'POST',body:JSON.stringify({settings:readSettings()})});fillSettings(d.settings||{});el('settingsMsg').textContent='已保存，客户端刷新后生效'}catch(e){el('settingsMsg').textContent=e.message}}
 async function createUser(){try{await api('/api/admin/users',{method:'POST',body:JSON.stringify({email:el('newEmail').value,password:el('newPassword').value,nickname:el('newNickname').value,credits:el('newCredits').value,notes:el('newNotes').value})});el('createMsg').textContent='创建成功';el('newEmail').value='';el('newPassword').value='';el('newNickname').value='';el('newNotes').value='';await loadUsers()}catch(e){el('createMsg').textContent=e.message}}
