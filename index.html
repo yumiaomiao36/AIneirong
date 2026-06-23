@@ -943,11 +943,13 @@ textarea { resize: vertical; min-height: 80px; }
         </div>
         <div class="form-group">
           <label class="form-label">目标人群</label>
-          <select id="audience">
+          <select id="audience" onchange="toggleCustomAudience()">
             <option value="职场白领">职场白领</option><option value="创业老板">创业老板</option>
             <option value="学生党">学生党</option><option value="宝妈">宝妈</option>
             <option value="技术从业者">技术从业者</option><option value="全年龄段">全年龄段</option>
+            <option value="custom">自定义目标人群</option>
           </select>
+          <input type="text" id="audienceCustom" placeholder="例如：生鲜店老板、包装厂采购、社区团购团长、医美机构运营..." style="display:none;margin-top:8px;">
         </div>
       </div>
       <div class="form-group">
@@ -1013,7 +1015,7 @@ textarea { resize: vertical; min-height: 80px; }
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">必须包含的要点</label>
+        <label class="form-label">必须包含的要点 <span class="form-hint">若无要点符合要求，可在下方“额外要求”中填入</span></label>
         <div class="tags" id="featureTags">
           <span class="tag selected" data-v="实用干货">实用干货</span>
           <span class="tag" data-v="数据支撑">数据支撑</span>
@@ -1788,7 +1790,7 @@ function renderAuthState() {
 }
 
 const CONTENT_FORM_FIELDS = [
-  'brandName', 'brandTagline', 'niche', 'reference', 'topic', 'contentDesc', 'extraDesc',
+  'brandName', 'brandTagline', 'niche', 'reference', 'topic', 'contentDesc', 'extraDesc', 'audienceCustom',
 ];
 const CONTENT_SELECT_DEFAULTS = {
   platform: '',
@@ -1801,7 +1803,7 @@ const CONTENT_SELECT_DEFAULTS = {
 };
 const CONTENT_STATE_KEYS = [
   'brandName', 'brandTagline', 'niche', 'reference', 'platform', 'contentType', 'topic',
-  'contentDesc', 'tone', 'audience', 'features', 'extraDesc', 'copyCount', 'wordLimit',
+  'contentDesc', 'tone', 'audience', 'audienceCustom', 'features', 'extraDesc', 'copyCount', 'wordLimit',
   'copywriting', 'planApproved', 'selectedPlanIndex', 'images', 'videoUrl', 'sourceVideoUrl',
   'sourceVideoHasAudio', 'sourceVideoDuration', 'sourceVideoWidth', 'sourceVideoHeight',
   'previewAspect', 'videoGenerationMode', 'confirmedCopyText', 'ttsAudioUrl', 'ttsDuration',
@@ -1853,7 +1855,7 @@ function resetNewContentForm() {
   Object.assign(S, {
     brandName: '', brandTagline: '', niche: '', reference: '',
     platform: '', contentType: '', topic: '', contentDesc: '', tone: '',
-    audience: '', features: [], extraDesc: '', copyCount: 3, wordLimit: '中',
+    audience: '', audienceCustom: '', features: [], extraDesc: '', copyCount: 3, wordLimit: '中',
     copywriting: [], planApproved: false, selectedPlanIndex: 0,
     images: [], videoUrl: null, sourceVideoUrl: null, sourceVideoHasAudio: null,
     sourceVideoDuration: null, sourceVideoWidth: null, sourceVideoHeight: null,
@@ -1868,12 +1870,22 @@ function resetNewContentForm() {
   const duration = document.getElementById('contentVideoDuration');
   if (duration) duration.value = '15';
   if (document.getElementById('customVideoDuration')) document.getElementById('customVideoDuration').value = '15';
+  toggleCustomAudience();
   toggleCustomDuration();
 }
 
 function startNewContent() {
   resetNewContentForm();
   goPage('page-select');
+}
+
+function toggleCustomAudience() {
+  const select = document.getElementById('audience');
+  const input = document.getElementById('audienceCustom');
+  if (!select || !input) return;
+  const isCustom = select.value === 'custom';
+  input.style.display = isCustom ? 'block' : 'none';
+  if (!isCustom) input.value = '';
 }
 
 async function consumeGenerationCredit(taskTitle = '') {
@@ -2257,7 +2269,9 @@ function collectConfigFromDom() {
   S.topic = document.getElementById('topic').value.trim();
   S.contentDesc = document.getElementById('contentDesc').value.trim();
   S.tone = document.getElementById('tone').value;
-  S.audience = document.getElementById('audience').value;
+  const audienceSelectValue = document.getElementById('audience').value;
+  S.audienceCustom = document.getElementById('audienceCustom')?.value?.trim() || '';
+  S.audience = audienceSelectValue === 'custom' ? (S.audienceCustom || '自定义目标人群') : audienceSelectValue;
   S.features = Array.from(document.querySelectorAll('#featureTags .tag.selected')).map(t => t.dataset.v);
   S.extraDesc = document.getElementById('extraDesc').value.trim();
   S.copyCount = parseInt(document.getElementById('copyCount').value);
@@ -6706,7 +6720,7 @@ function buildTaskRecord(status = 'generated') {
     createdAt: new Date().toISOString(),
     persona: {
       brandName: S.brandName, brandTagline: S.brandTagline, niche: S.niche,
-      platform: S.platform, tone: S.tone, audience: S.audience,
+      platform: S.platform, tone: S.tone, audience: S.audience, audienceCustom: S.audienceCustom,
     },
     contentGoal: {
       contentType: S.contentType, topic: S.topic, contentDesc: S.contentDesc, features: S.features,
@@ -6773,6 +6787,7 @@ function restoreTask(id) {
   S.platform = task.persona?.platform || '抖音';
   S.tone = task.persona?.tone || '';
   S.audience = task.persona?.audience || '';
+  S.audienceCustom = task.persona?.audienceCustom || '';
   S.contentType = task.contentGoal?.contentType || '';
   S.topic = task.contentGoal?.topic || '';
   S.contentDesc = task.contentGoal?.contentDesc || '';
