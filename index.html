@@ -1727,7 +1727,9 @@ async function loginUser() {
     localStorage.setItem('agentflow_auth_token', S.authToken);
     loadUserLocalState();
     await loadServerSettings();
+    resetNewContentForm();
     renderAuthState();
+    goPage('page-select');
     toast('✅ 登录成功');
   } catch (e) {
     if (msg) msg.textContent = e.message || '登录失败';
@@ -1742,6 +1744,7 @@ async function logoutUser() {
   S.currentUser = null;
   S.tagLibrary = [];
   localStorage.removeItem('agentflow_auth_token');
+  resetNewContentForm();
   renderAuthState();
 }
 
@@ -1751,18 +1754,21 @@ async function refreshCurrentUser() {
     return null;
   }
   try {
+    const previousUserId = S.currentUser?.id || null;
     const res = await fetch('/auth/me', { headers: authHeaders() });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || '登录已失效');
     S.currentUser = data.user;
     loadUserLocalState();
     await loadServerSettings();
+    if (previousUserId && previousUserId !== data.user.id) resetNewContentForm();
     renderAuthState();
     return data.user;
   } catch {
     S.authToken = '';
     S.currentUser = null;
     localStorage.removeItem('agentflow_auth_token');
+    resetNewContentForm();
     renderAuthState();
     return null;
   }
