@@ -1599,7 +1599,8 @@ textarea { resize: vertical; min-height: 80px; }
 /* ============================================================
    GLOBAL STATE
    ============================================================ */
-const APP_BUILD = '2026-06-22-i2v-oss-subtitle-clean';
+const APP_BUILD = '2026-06-23-strict-material-match';
+const LOCAL_IMAGE_MATCH_THRESHOLD = 95;
 const S = {
   textProviderPreset: 'deepseek',
   textUrl: 'https://api.deepseek.com/v1/chat/completions',
@@ -3137,7 +3138,7 @@ async function planSceneAssets(plan, selection) {
   prompts.forEach((prompt, idx) => {
     const scene = getStoryboardScenes(plan)[idx] || {};
     const match = findBestLocalImageForScene(scene, prompt, imageMaterials, selection, usedLocalAssets);
-    if (match && match.score >= 18) {
+    if (match && match.score >= LOCAL_IMAGE_MATCH_THRESHOLD) {
       usedLocalAssets.add(match.item.storedName || match.item.id || match.item.url);
       result.images[idx] = {
         ...imageRecord(match.item.url, prompt, `镜头${idx + 1}本地素材`),
@@ -3172,7 +3173,7 @@ async function planSceneAssets(plan, selection) {
       status: 'missing',
       source: selection.pexelsKey ? 'pexels_or_ai_image' : 'ai_image',
       score: match?.score || 0,
-      reason: match ? `最高本地图片分 ${match.score}，低于阈值` : '本地素材库没有可用图片候选',
+      reason: match ? `最高本地图片分 ${match.score}，低于严格阈值 ${LOCAL_IMAGE_MATCH_THRESHOLD}` : '本地素材库没有可用图片候选',
     });
   });
 
@@ -3180,54 +3181,53 @@ async function planSceneAssets(plan, selection) {
 }
 
 function findBestLocalImageForScene(scene, prompt, materials, selection, excludedAssets = new Set()) {
-  const sceneText = [
-    selection.topic,
-    selection.contentDesc,
-    scene.shot,
-    scene.videoPrompt,
-    scene.textOverlay,
-    ...(scene.materialKeywords || []),
-    prompt.prompt,
-  ].filter(Boolean).join(' ');
-  const needTokens = tokenizeAssetText(sceneText);
-  const requiredDomain = inferRequiredAssetDomain(sceneText);
+  const sceneText = buildSceneMaterialNeedText(scene, prompt, selection);
+  const strictNeedTerms = extractStrictMaterialNeedTerms(scene, prompt, selection);
   const forbiddenTokens = inferForbiddenAssetTokens(sceneText);
+  if (strictNeedTerms.length < 3) return null;
   let best = null;
   for (const item of materials) {
     const assetKey = item.storedName || item.id || item.url;
     if (assetKey && excludedAssets.has(assetKey)) continue;
-    const text = [
+    const textParts = [
       item.filename,
       item.storedName,
       ...(item.tags || []),
+      ...(item.manualTags || []),
+      ...(item.aiTags || []),
       item.orientation,
       item.metadata?.orientation,
       item.analysis?.sceneDesc,
       item.analysis?.bestUse,
       ...(item.analysis?.autoTags || []),
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean);
+    const text = textParts.join(' ');
+    const lowerText = text.toLowerCase();
     const materialTokens = tokenizeAssetText(text);
     if (forbiddenTokens.length && forbiddenTokens.some(t => materialTokens.has(t))) continue;
-    const domainHits = requiredDomain.length ? requiredDomain.filter(t => materialTokens.has(t)) : [];
-    if (requiredDomain.length && !domainHits.length) continue;
-    const hits = [...needTokens].filter(t => materialTokens.has(t) && !isGenericAssetToken(t));
+    const strictHits = strictNeedTerms.filter(t =>
+      lowerText.includes(String(t).toLowerCase())
+      && !isGenericAssetToken(t)
+      && !/^\d+$/.test(t)
+    );
+    const requiredHitCount = Math.min(4, Math.max(3, Math.ceil(strictNeedTerms.length * 0.28)));
+    if (strictHits.length < requiredHitCount) continue;
     const dims = item.dimensions || item.metadata?.dimensions || {};
     const ratio = Number(item.aspectRatio || item.metadata?.aspectRatio || 0);
     const orientation = item.orientation || item.metadata?.orientation || '';
     const portraitBonus = orientation === '竖图' || (ratio > 0 && ratio < 0.92) || (dims.height && dims.width && dims.height > dims.width);
     const squareBonus = orientation === '方图' || (ratio >= 0.92 && ratio <= 1.08);
     const aiGeneratedPenalty = (item.tags || []).includes('AI生成') ? -2 : 0;
-    const domainBonus = domainHits.length * 18;
-    const semanticScore = hits.length * 8;
-    const score = semanticScore + domainBonus + (portraitBonus ? 3 : 0) + (squareBonus ? 1 : 0) + aiGeneratedPenalty;
-    if (score < 20 || (!requiredDomain.length && hits.length < 2)) continue;
+    const coverageBonus = strictHits.length >= Math.ceil(strictNeedTerms.length * 0.45) ? 12 : 0;
+    const semanticScore = Math.min(112, strictHits.length * 24 + coverageBonus);
+    const score = semanticScore + (portraitBonus ? 3 : 0) + (squareBonus ? 1 : 0) + aiGeneratedPenalty;
+    if (score < LOCAL_IMAGE_MATCH_THRESHOLD) continue;
     const candidate = {
       item,
       score,
       reason: [
-        domainHits.length ? `行业命中 ${domainHits.slice(0, 4).join('、')}` : '',
-        hits.length ? `语义命中 ${hits.slice(0, 5).join('、')}${hits.length > 5 ? ' 等关键词' : ''}` : '',
-      ].filter(Boolean).join('；') || '素材语义匹配',
+        `严格命中 ${strictHits.slice(0, 6).join('、')}${strictHits.length > 6 ? ' 等关键词' : ''}`,
+      ].filter(Boolean).join('；'),
     };
     if (!best || candidate.score > best.score || (candidate.score === best.score && (item.createdAt || 0) > (best.item.createdAt || 0))) {
       best = candidate;
@@ -3240,8 +3240,64 @@ function isGenericAssetToken(token) {
   return new Set([
     '中国', '现代', '画面', '镜头', '场景', '空间', '人物', '专业', '真实', '自然',
     '企业', '商务', '公司', '员工', '团队', '办公室', '办公', '职场', '客户',
-    '品牌', '产品', '展示', '服务', '视频', '图片', '竖版', '横版'
+    '品牌', '产品', '展示', '服务', '视频', '图片', '竖版', '横版',
+    '高清', '清晰', '干净', '明亮', '质感', '特写', '细节', '宣传', '短视频',
+    '真实感', '自然光', '背景', '构图', '商业', '生活化', '氛围'
   ]).has(String(token || '').trim());
+}
+
+function buildSceneMaterialNeedText(scene, prompt, selection) {
+  return [
+    selection.brandName,
+    selection.brandTagline,
+    selection.niche,
+    selection.topic,
+    selection.contentDesc,
+    scene.shot,
+    scene.videoPrompt,
+    scene.textOverlay,
+    ...(scene.materialKeywords || []),
+    prompt.prompt,
+  ].filter(Boolean).join(' ');
+}
+
+function extractStrictMaterialNeedTerms(scene, prompt, selection) {
+  const sources = [
+    selection.brandName,
+    selection.niche,
+    selection.topic,
+    selection.contentDesc,
+    scene.shot,
+    scene.videoPrompt,
+    ...(scene.materialKeywords || []),
+    prompt.label,
+    prompt.prompt,
+  ].filter(Boolean);
+  const terms = new Map();
+  const add = (term, weight = 1) => {
+    const clean = String(term || '').toLowerCase().trim();
+    if (!clean || clean.length < 2 || clean.length > 12) return;
+    if (/^\d+$/.test(clean) || isGenericAssetToken(clean)) return;
+    if (/^(第|镜头|分镜|生成|一个|一种|本次|需要|应该|可以|不要|避免|保持|画面|字幕|含义)$/.test(clean)) return;
+    terms.set(clean, Math.max(terms.get(clean) || 0, weight));
+  };
+
+  for (const source of sources) {
+    const text = String(source || '').replace(/[，。！？、；：“”‘’（）《》【】,.!?;:()\[\]\-+/%&·…—\s]+/g, ' ');
+    for (const token of text.match(/[a-z0-9]{2,12}|[\u4e00-\u9fff]{2,12}/g) || []) {
+      add(token, 2);
+      if (/[\u4e00-\u9fff]/.test(token) && token.length >= 5) {
+        for (let size = 2; size <= Math.min(4, token.length); size++) {
+          for (let i = 0; i <= token.length - size; i++) add(token.slice(i, i + size), 1);
+        }
+      }
+    }
+  }
+
+  return [...terms.entries()]
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .map(([term]) => term)
+    .slice(0, 36);
 }
 
 function inferRequiredAssetDomain(text) {
@@ -3308,6 +3364,11 @@ function tokenizeAssetText(text) {
     }
   }
   return tokens;
+}
+
+function tokenizeAssetTextRaw(text) {
+  const raw = String(text || '').toLowerCase();
+  return new Set(raw.match(/[a-z0-9]+|[\u4e00-\u9fff]{2,}/g) || []);
 }
 
 function mergeScenePlannedImages(plannedImages, generatedImages) {
