@@ -1492,7 +1492,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 )
                 subtitle = self._clean_subtitle_text(entries[idx].get('subtitle') or '')
                 if subtitle:
-                    subtitle = self._compact_subtitle(subtitle)
+                    subtitle = self._compact_subtitle(subtitle, max_chars=18)
                 if subtitle:
                     escaped = self._ffmpeg_drawtext_escape(subtitle)
                     font_part = f":fontfile='{self._ffmpeg_drawtext_escape(fontfile)}'" if fontfile else ''
@@ -1629,7 +1629,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             subtitle_filters = []
             video_out_label = 'vbase'
             if isinstance(raw_subtitles, list):
-                subtitle_texts = [self._compact_subtitle(item, max_chars=30) for item in raw_subtitles]
+                subtitle_texts = [self._compact_subtitle(item, max_chars=18) for item in raw_subtitles]
             else:
                 subtitle_texts = []
             if not any(subtitle_texts) and text:
@@ -1663,7 +1663,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     start = max(0.0, offset)
                     end = min(target_duration, offset + duration)
                     offset += duration
-                    lines = self._caption_lines(subtitle, max_chars=30, line_chars=15)
+                    lines = self._caption_lines(subtitle, max_chars=18, line_chars=18)
                     if not lines or end <= start:
                         continue
                     for row, line in enumerate(lines):
@@ -1873,7 +1873,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             captions = []
             offset = 0.0
             for clip in selected:
-                caption_lines = self._caption_lines(clip.get('caption') or '', max_chars=28, line_chars=14)
+                caption_lines = self._caption_lines(clip.get('caption') or '', max_chars=18, line_chars=18)
                 if caption_lines:
                     captions.append((offset, offset + clip['duration'], caption_lines))
                 offset += clip['duration']
@@ -2437,13 +2437,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return 'longanyang'
         return value
 
-    def _caption_lines(self, text, max_chars=28, line_chars=14):
+    def _caption_lines(self, text, max_chars=18, line_chars=18):
         clean = self._compact_subtitle(text, max_chars=max_chars)
         if not clean:
             return []
-        if len(clean) <= line_chars:
-            return [clean]
-        return [clean[:line_chars], clean[line_chars:line_chars * 2]]
+        return [clean[:max(1, line_chars)]]
 
     def _subtitle_chunks_from_text(self, text, chunk_chars=14, max_chunks=6):
         clean = re.sub(r'[#@]\S+', '', self._clean_subtitle_text(text))

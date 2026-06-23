@@ -3512,7 +3512,7 @@ function sanitizeSubtitleText(value) {
   if (/^(无|不加|无需|没有)?字幕$/i.test(compact)) return '';
   if (/(无字幕|没有字幕|不加字幕|无需字幕|保留.*尾音|尾音|可为空|空字符串|字幕短句|无需显示|不显示文字|不显示字幕)/i.test(compact)) return '';
   if (/^[（(].*[）)]$/.test(compact) && compact.length > 8) return '';
-  return text.slice(0, 28);
+  return text.slice(0, 18);
 }
 
 function buildSceneDurationsForImages(images, plan, totalDuration) {
@@ -3550,7 +3550,7 @@ function splitVoiceoverIntoSubtitles(text) {
   let current = '';
   for (const part of clean.split(/\s+/).filter(Boolean)) {
     const next = current ? current + part : part;
-    if (next.length > 14 && current) {
+    if (next.length > 12 && current) {
       chunks.push(sanitizeSubtitleText(current));
       current = part;
     } else {
@@ -7056,6 +7056,7 @@ function finishPublishStatusUI(delay = 30000) {
 function getCloudPublishConsoleUrl() {
   const { protocol, hostname, port, origin } = window.location;
   const query = 'vnc.html?autoconnect=true&resize=scale&shared=true';
+  if (protocol === 'http:') return `${protocol}//${hostname}:6080/${query}`;
   if (!port || port === '80' || port === '443') return `${origin}/novnc/${query}`;
   return `${protocol}//${hostname}:6080/${query}`;
 }
