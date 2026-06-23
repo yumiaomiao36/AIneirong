@@ -198,12 +198,23 @@ def _init_auth_db():
         ''')
         admin = conn.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
         if not admin:
+            initial_admin_password = os.environ.get('AGENTFLOW_ADMIN_PASSWORD') or secrets.token_urlsafe(14)
             conn.execute(
                 'INSERT INTO users(email,password_hash,nickname,role,status,notes) VALUES(?,?,?,?,?,?)',
-                ('admin', _hash_password('admin123456'), '管理员', 'admin', 'active', '初始管理员，请尽快修改密码')
+                ('admin', _hash_password(initial_admin_password), '管理员', 'admin', 'active', '初始管理员，请尽快修改密码')
             )
             user_id = conn.execute("SELECT id FROM users WHERE email='admin'").fetchone()['id']
             conn.execute('INSERT OR IGNORE INTO quotas(user_id,total_credits,used_credits) VALUES(?,?,?)', (user_id, 999999, 0))
+            if not os.environ.get('AGENTFLOW_ADMIN_PASSWORD'):
+                os.makedirs(DATA_DIR, exist_ok=True)
+                password_file = os.path.join(DATA_DIR, 'initial_admin_password.txt')
+                with open(password_file, 'w', encoding='utf-8') as f:
+                    f.write(initial_admin_password + '\n')
+                try:
+                    os.chmod(password_file, 0o600)
+                except Exception:
+                    pass
+                _server_logger.warning('已生成随机初始管理员密码，请登录服务器查看 %s 并尽快修改。', password_file)
 
 _init_auth_db()
 
