@@ -137,8 +137,11 @@ def _save_app_settings(data):
     os.makedirs(DATA_DIR, exist_ok=True)
     current = _load_app_settings()
     clean = {}
+    sensitive_keys = {'textKey', 'visionKey', 'wanxKey', 'ossAccessKeyId', 'ossAccessKeySecret'}
     for key, default in DEFAULT_APP_SETTINGS.items():
         value = data.get(key, current.get(key, default))
+        if key in sensitive_keys and not str(value or '').strip():
+            value = current.get(key, default)
         if isinstance(default, bool):
             clean[key] = bool(value)
         else:
@@ -148,6 +151,15 @@ def _save_app_settings(data):
     with open(APP_SETTINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(clean, f, ensure_ascii=False, indent=2)
     return clean
+
+def _public_app_settings(settings=None):
+    settings = dict(settings or _load_app_settings())
+    for key in ('textKey', 'visionKey', 'wanxKey', 'ossAccessKeyId', 'ossAccessKeySecret'):
+        configured_key = f'{key}Configured'
+        settings[configured_key] = bool(str(settings.get(key) or '').strip())
+        settings[key] = ''
+    settings['visionKeyConfigured'] = settings.get('visionKeyConfigured') or settings.get('wanxKeyConfigured')
+    return settings
 
 def _init_auth_db():
     with _db() as conn:
@@ -797,15 +809,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 item.update(self._oss_upload_file(path, category='materials'))
             except Exception as oss_error:
                 item['ossError'] = str(oss_error)[:500]
-            vision_key = (data.get('visionKey') or '').strip()
+            settings = _load_app_settings()
+            vision_key = (settings.get('visionKey') or settings.get('wanxKey') or data.get('visionKey') or '').strip()
             if vision_key:
                 try:
                     item['analysis'] = self._analyze_material_with_vision(
                         path,
                         kind,
                         vision_key,
-                        (data.get('visionModel') or 'qwen3.6-35b-a3b').strip(),
-                        (data.get('visionUrl') or 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions').strip(),
+                        (settings.get('visionModel') or data.get('visionModel') or 'qwen3.6-35b-a3b').strip(),
+                        (settings.get('visionUrl') or data.get('visionUrl') or 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions').strip(),
                     )
                     auto_tags = item.get('analysis', {}).get('autoTags') or []
                     item['aiTags'] = auto_tags
@@ -1257,7 +1270,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _app_settings_get(self):
         settings = _load_app_settings()
-        self._json_response(200, {'ok': True, 'settings': settings})
+        self._json_response(200, {'ok': True, 'settings': _public_app_settings(settings)})
 
     def _admin_settings_get(self):
         if not self._require_admin():
@@ -1561,6 +1574,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             text = (data.get('text') or '').strip()
             voice = self._normalize_tts_voice((data.get('voice') or 'longanyang').strip())
             tts_auth = self.headers.get('X-TTS-Auth', '').strip()
+            if not tts_auth:
+                wanx_key = (_load_app_settings().get('wanxKey') or '').strip()
+                if wanx_key:
+                    tts_auth = f'Bearer {wanx_key}'
             if not text:
                 raise ValueError('缺少配音文本')
 
@@ -1603,6 +1620,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             except (TypeError, ValueError):
                 requested_duration = None
             tts_auth = self.headers.get('X-TTS-Auth', '').strip()
+            if not tts_auth:
+                wanx_key = (_load_app_settings().get('wanxKey') or '').strip()
+                if wanx_key:
+                    tts_auth = f'Bearer {wanx_key}'
             if not text:
                 raise ValueError('缺少配音文本')
             if not video_url:
@@ -2782,8 +2803,12 @@ boot();
         elif body and 'video-generation/video-synthesis' in target_url:
             body = self._normalize_i2v_proxy_body(body)
 
-        # Forward auth header
+        # Forward auth header. Client-side keys are deprecated; when absent,
+        # inject credentials from server-side settings so customer browsers
+        # never need to receive model API keys.
         auth = self.headers.get('X-Auth-Header', '')
+        if not auth:
+            auth = self._server_auth_for_target(target_url)
         dashscope_async = self.headers.get('X-DashScope-Async', '')
 
         req_headers = {
@@ -2848,6 +2873,23 @@ boot();
             self.send_header('Content-Length', str(len(body_bytes)))
             self.end_headers()
             self.wfile.write(body_bytes)
+
+    def _server_auth_for_target(self, target_url):
+        settings = _load_app_settings()
+        url = str(target_url or '')
+        text_url = str(settings.get('textUrl') or '')
+        vision_url = str(settings.get('visionUrl') or '')
+        if text_url and url.startswith(text_url) and settings.get('textKey'):
+            return f"Bearer {settings.get('textKey')}"
+        if vision_url and url.startswith(vision_url):
+            key = settings.get('visionKey') or settings.get('wanxKey')
+            if key:
+                return f"Bearer {key}"
+        if 'dashscope.aliyuncs.com' in url:
+            key = settings.get('wanxKey')
+            if key:
+                return f"Bearer {key}"
+        return ''
 
     def _normalize_i2v_proxy_body(self, body):
         try:

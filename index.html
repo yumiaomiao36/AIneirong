@@ -1605,14 +1605,17 @@ const S = {
   textProviderPreset: 'deepseek',
   textUrl: 'https://api.deepseek.com/v1/chat/completions',
   textKey: '',
+  textKeyConfigured: false,
   textModel: 'deepseek-chat',
   visionKey: '',
+  visionKeyConfigured: false,
   visionModel: 'qwen3.6-35b-a3b',
   visionUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
   localStoryboardMode: false,
   publicMaterialProvider: 'off',
   publicMaterialPolicy: 'local_first',
   wanxKey: '',
+  wanxKeyConfigured: false,
   imgModel: 'wanx-v1',
   imgSize: '1024*1024',
   imgCount: '3',
@@ -1910,8 +1913,10 @@ async function apiFetch(targetUrl, options = {}) {
     'X-Proxy-Method': method,
   };
   if (S.authToken) proxyHeaders['X-Auth-Token'] = S.authToken;
-  // Forward auth
-  if (headers['Authorization']) proxyHeaders['X-Auth-Header'] = headers['Authorization'];
+  // Forward user-provided auth only when it is a real token. If the backend
+  // already owns the model key, leaving this blank lets /proxy inject it.
+  const rawAuth = String(headers['Authorization'] || '').trim();
+  if (rawAuth && !/^Bearer\s*$/i.test(rawAuth)) proxyHeaders['X-Auth-Header'] = rawAuth;
   if (headers['X-DashScope-Async']) proxyHeaders['X-DashScope-Async'] = headers['X-DashScope-Async'];
   
   const r = await fetch(PROXY, {
@@ -2170,33 +2175,51 @@ function scoreVideoCandidate(url) {
   return score;
 }
 
+function hasWanxKeyConfigured() {
+  return !!(S.wanxKey || S.wanxKeyConfigured);
+}
+
+function hasVisionKeyConfigured() {
+  return !!(S.visionKey || S.visionKeyConfigured || hasWanxKeyConfigured());
+}
+
+function hasTextKeyConfigured() {
+  return !!(S.textKey || S.textKeyConfigured || (S.textProviderPreset === 'qwen' && hasWanxKeyConfigured()));
+}
+
 function collectConfigFromDom() {
   S.textProviderPreset = document.getElementById('textProviderPreset').value;
   S.textUrl = document.getElementById('textUrl').value.trim();
-  S.textKey = document.getElementById('textKey').value.trim();
+  const localTextKey = document.getElementById('textKey').value.trim();
+  const localVisionKey = document.getElementById('visionKey').value.trim();
+  const localWanxKey = document.getElementById('wanxKey').value.trim()
+    || document.getElementById('wanxKeyVid')?.value?.trim()
+    || (S.textProviderPreset === 'qwen' ? localTextKey : '')
+    || localVisionKey
+    || '';
+  S.textKey = localTextKey;
   S.textModel = document.getElementById('textModel').value.trim();
-  S.visionKey = document.getElementById('visionKey').value.trim() || S.textKey || document.getElementById('wanxKey')?.value?.trim() || '';
+  S.visionKey = localVisionKey || localTextKey || localWanxKey || '';
   S.visionModel = document.getElementById('visionModel').value.trim() || 'qwen3.6-35b-a3b';
   S.visionUrl = document.getElementById('visionUrl').value.trim() || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
   S.localStoryboardMode = document.getElementById('localStoryboardMode').checked;
-  S.wanxKey = document.getElementById('wanxKey').value.trim()
-    || document.getElementById('wanxKeyVid')?.value?.trim()
-    || (S.textProviderPreset === 'qwen' ? document.getElementById('textKey')?.value?.trim() : '')
-    || document.getElementById('visionKey')?.value?.trim()
-    || '';
-  if (S.wanxKey) {
-    document.getElementById('wanxKey').value = S.wanxKey;
+  S.wanxKey = localWanxKey;
+  S.textKeyConfigured = !!(S.textKeyConfigured || localTextKey);
+  S.visionKeyConfigured = !!(S.visionKeyConfigured || localVisionKey || localWanxKey);
+  S.wanxKeyConfigured = !!(S.wanxKeyConfigured || localWanxKey);
+  if (localWanxKey) {
+    document.getElementById('wanxKey').value = localWanxKey;
     const wanxKeyVid = document.getElementById('wanxKeyVid');
-    if (wanxKeyVid) wanxKeyVid.value = S.wanxKey;
+    if (wanxKeyVid) wanxKeyVid.value = localWanxKey;
   }
   if (S.textProviderPreset === 'qwen') {
     if (!S.textUrl.includes('dashscope')) {
       S.textUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
       document.getElementById('textUrl').value = S.textUrl;
     }
-    if (!S.textKey && S.wanxKey) {
-      S.textKey = S.wanxKey;
-      document.getElementById('textKey').value = S.textKey;
+    if (!S.textKey && localWanxKey) {
+      S.textKey = localWanxKey;
+      document.getElementById('textKey').value = localWanxKey;
     }
     if (!S.textModel || S.textModel.startsWith('deepseek')) {
       S.textModel = 'qwen-plus';
@@ -2406,9 +2429,10 @@ function applyServerSettings(settings = {}) {
   if (!Object.keys(c).length) return;
   c.i2vModel = normalizeI2vModel(c.i2vModel || 'wan2.7-i2v');
   c.vidModel = '';
-  ['textKey', 'visionKey', 'wanxKey'].forEach(key => {
-    if (!c[key]) delete c[key];
-  });
+  c.textKeyConfigured = !!(c.textKeyConfigured || c.textKey);
+  c.visionKeyConfigured = !!(c.visionKeyConfigured || c.visionKey || c.wanxKeyConfigured || c.wanxKey);
+  c.wanxKeyConfigured = !!(c.wanxKeyConfigured || c.wanxKey);
+  ['textKey', 'visionKey', 'wanxKey'].forEach(key => { delete c[key]; });
   Object.assign(S, c);
   const setVal = (id, value) => {
     const el = document.getElementById(id);
@@ -2416,15 +2440,13 @@ function applyServerSettings(settings = {}) {
   };
   setVal('textProviderPreset', c.textProviderPreset || 'deepseek');
   setVal('textUrl', c.textUrl || 'https://api.deepseek.com/v1/chat/completions');
-  if (c.textKey) setVal('textKey', c.textKey);
+  setVal('textKey', '');
   setVal('textModel', c.textModel || 'deepseek-chat');
-  if (c.visionKey) setVal('visionKey', c.visionKey);
+  setVal('visionKey', '');
   setVal('visionModel', c.visionModel || 'qwen3.6-35b-a3b');
   setVal('visionUrl', c.visionUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions');
-  if (c.wanxKey) {
-    setVal('wanxKey', c.wanxKey);
-    setVal('wanxKeyVid', c.wanxKey);
-  }
+  setVal('wanxKey', '');
+  setVal('wanxKeyVid', '');
   setVal('imgProvider', c.imgProvider || 'bailian');
   setVal('imgModel', c.imgModel || 'wanx-v1');
   setVal('imgSize', c.imgSize || '1024*1024');
@@ -3407,7 +3429,7 @@ async function agent3_primaryCompose(selection, copywriting) {
   const imageUrls = imageItems.map(img => img.url || img.sourceUrl || img.cloudUrl || img.materialItem?.url || img.materialItem?.cloudUrl).filter(Boolean);
   const errors = [];
 
-  if (imageUrls.length && S.wanxKey) {
+  if (imageUrls.length && hasWanxKeyConfigured()) {
     try {
       u(3, 'running', '视频合成：正在生成动态视频片段...');
       const url = await agent3_i2vPrimaryVideo(selection, copywriting, imageItems, targetDuration);
@@ -3418,7 +3440,7 @@ async function agent3_primaryCompose(selection, copywriting) {
       if (typeof logger !== 'undefined') logger.error(`[i2v primary failed] ${e.message || e}`);
       u(3, 'running', '视频合成：动态视频暂不可用，正在切换备用成片方式...');
     }
-  } else if (imageUrls.length && !S.wanxKey) {
+  } else if (imageUrls.length && !hasWanxKeyConfigured()) {
     u(3, 'running', '视频合成：云端动态视频未配置，正在使用备用成片方式...');
   }
 
@@ -4217,7 +4239,7 @@ async function agent3_pexels(selection, copywriting) {
 
 async function agent3_aiFallbackVideo(selection, copywriting, reason) {
   const fallbackOrder = [];
-  if (S.wanxKey && S.i2vModel) fallbackOrder.push('bailian');
+  if (hasWanxKeyConfigured() && S.i2vModel) fallbackOrder.push('bailian');
   if (!fallbackOrder.length) {
     throw new Error(`${reason}，且没有可用的百炼/千问生态视频 Key 作为兜底。请在高级配置里填写百炼 Key，或把文本模型切到阿里百炼/千问并填写同一个 Key。`);
   }
@@ -4399,7 +4421,7 @@ async function runWorkflow() {
 
   // Validate
   if (!S.topic) { toast('❌ 请输入内容主题'); return; }
-  if (!S.localStoryboardMode && !S.textKey) { promptAdminConfig('❌ 文案模型 Key 未配置，请到管理后台维护系统配置'); return; }
+  if (!S.localStoryboardMode && !hasTextKeyConfigured()) { promptAdminConfig('❌ 文案模型 Key 未配置，请到管理后台维护系统配置'); return; }
 
   // Reset
   S.copywriting = [];
@@ -4550,8 +4572,8 @@ async function confirmCopyAndGenerateStoryboard(skipReview = false) {
   if (!plan) { toast('❌ 请先选择一个文案方案'); return; }
   const text = (plan.voiceoverScript || plan.caption || '').trim();
   if (!text) { toast('❌ 请先填写配音短口播'); return; }
-  if (!S.textKey && !S.localStoryboardMode) { promptAdminConfig('❌ 文案模型 Key 未配置，请到管理后台维护系统配置'); return; }
-  if (!S.wanxKey) { promptAdminConfig('❌ 百炼 Key 未配置，无法生成配音和图生视频'); return; }
+  if (!hasTextKeyConfigured() && !S.localStoryboardMode) { promptAdminConfig('❌ 文案模型 Key 未配置，请到管理后台维护系统配置'); return; }
+  if (!hasWanxKeyConfigured()) { promptAdminConfig('❌ 百炼 Key 未配置，无法生成配音和图生视频'); return; }
 
   S.confirmedCopyText = text;
   S.running = true;
@@ -4914,7 +4936,7 @@ async function continueWorkflowAfterReview() {
   const sceneImageCount = buildImagePrompts(chosen, S).length;
   u(2, 'running', `本地检索：正在为 ${sceneImageCount} 个分镜匹配素材...`);
   try {
-    const hasImgKey = (S.imgProvider === 'bailian' && S.wanxKey)
+    const hasImgKey = (S.imgProvider === 'bailian' && hasWanxKeyConfigured())
       || (S.imgProvider === 'jimeng' && S.jimengKey)
       || (S.imgProvider === 'agnes' && (S.agnesImageKey || S.agnesKey));
     const hasPexelsKey = !!S.pexelsKey;
@@ -6154,7 +6176,8 @@ async function uploadMaterials() {
   progress.classList.add('show');
   log.innerHTML = '';
   bar.style.width = '0%';
-  title.textContent = S.visionKey ? '上传并识别素材' : '上传素材';
+  const canAnalyzeMaterial = hasVisionKeyConfigured();
+  title.textContent = canAnalyzeMaterial ? '上传并识别素材' : '上传素材';
   countEl.textContent = `0/${files.length}`;
 
   const setProgress = (idx, currentFile, statusText) => {
@@ -6180,10 +6203,10 @@ async function uploadMaterials() {
       if (file.size > maxUploadBytes) {
         throw new Error(`文件过大（${Math.round(file.size / 1024 / 1024)}MB），请压缩到 180MB 以内后再上传`);
       }
-      setProgress(i, file, S.visionKey ? '正在上传并识别' : '正在上传');
-      addLog(file, 'running', S.visionKey ? '上传/识别中' : '上传中');
+      setProgress(i, file, canAnalyzeMaterial ? '正在上传并识别' : '正在上传');
+      addLog(file, 'running', canAnalyzeMaterial ? '上传/识别中' : '上传中');
       const dataUrl = await fileToDataUrl(file);
-      setProgress(i, file, S.visionKey ? '已读取，正在入库识别' : '已读取，正在入库');
+      setProgress(i, file, canAnalyzeMaterial ? '已读取，正在入库识别' : '已读取，正在入库');
       const res = await fetch('/material-upload', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -6192,7 +6215,6 @@ async function uploadMaterials() {
           type: file.type,
           tags,
           dataUrl,
-          visionKey: S.visionKey,
           visionModel: S.visionModel,
           visionUrl: S.visionUrl,
         }),
