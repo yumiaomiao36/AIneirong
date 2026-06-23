@@ -6121,11 +6121,16 @@ function renderMaterialMetadata(item) {
   return `<div class="material-tags" title="素材元数据">${parts.map(esc).join('，')}${parts.length && colorHtml ? '，' : ''}${colorHtml}</div>`;
 }
 
-function fileToDataUrl(file) {
+function fileToDataUrl(file, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    const timer = setTimeout(() => {
+      try { reader.abort(); } catch {}
+      reject(new Error('读取本地文件超时，请压缩素材或分批上传'));
+    }, timeoutMs);
     reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
+    reader.onerror = () => reject(reader.error || new Error('读取本地文件失败'));
+    reader.onloadend = () => clearTimeout(timer);
     reader.readAsDataURL(file);
   });
 }
@@ -6165,12 +6170,16 @@ async function uploadMaterials() {
     log.prepend(row);
   };
   const uploadTimeoutMs = 180000;
+  const maxUploadBytes = 180 * 1024 * 1024;
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), uploadTimeoutMs);
     try {
+      if (file.size > maxUploadBytes) {
+        throw new Error(`文件过大（${Math.round(file.size / 1024 / 1024)}MB），请压缩到 180MB 以内后再上传`);
+      }
       setProgress(i, file, S.visionKey ? '正在上传并识别' : '正在上传');
       addLog(file, 'running', S.visionKey ? '上传/识别中' : '上传中');
       const dataUrl = await fileToDataUrl(file);
@@ -7063,12 +7072,27 @@ function finishPublishStatusUI(delay = 30000) {
 }
 
 function getCloudPublishConsoleUrl() {
-  if (S.publishConsoleUrl) return S.publishConsoleUrl;
+  if (S.publishConsoleUrl) return normalizeCloudPublishConsoleUrl(S.publishConsoleUrl);
   const { protocol, hostname, port, origin } = window.location;
   const query = 'vnc.html?autoconnect=true&resize=scale&shared=true';
   if (protocol === 'http:') return `${protocol}//${hostname}:6080/${query}`;
   if (!port || port === '80' || port === '443') return `${origin}/novnc/${query}`;
   return `${protocol}//${hostname}:6080/${query}`;
+}
+
+function normalizeCloudPublishConsoleUrl(value) {
+  let url = String(value || '').trim();
+  if (!url) return '';
+  if (!/^https?:\/\//i.test(url)) {
+    url = `${window.location.protocol}//${url}`;
+  }
+  if (!/\/vnc\.html(?:[?#]|$)/i.test(url)) {
+    url = url.replace(/\/+$/, '') + '/vnc.html';
+  }
+  if (!/[?&]autoconnect=/i.test(url)) {
+    url += (url.includes('?') ? '&' : '?') + 'autoconnect=true&resize=scale&shared=true';
+  }
+  return url;
 }
 
 function openCloudPublishConsole() {
