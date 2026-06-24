@@ -9,30 +9,32 @@
    CSS Variables — Warm Modern Light Theme
    ============================================================ */
 :root {
-  --bg: #faf9f6;
+  --bg: #f7f8f5;
   --card: #ffffff;
-  --sidebar-bg: #f4f2ee;
-  --text: #1c1c1e;
-  --text2: #63636e;
-  --text3: #9898a4;
-  --border: #e9e6e1;
-  --border2: #d6d2cb;
-  --primary: #5b5fef;
-  --primary-light: #f0f0fe;
-  --primary-hover: #4a4edc;
-  --success: #059669;
-  --success-light: #ecfdf5;
-  --warning: #d97706;
+  --sidebar-bg: #eef2ee;
+  --text: #16211f;
+  --text2: #596662;
+  --text3: #89948f;
+  --border: #dde5df;
+  --border2: #c8d3cc;
+  --primary: #126b5f;
+  --primary-light: #e7f4f1;
+  --primary-hover: #0d574e;
+  --success: #0c8a60;
+  --success-light: #e8f7ef;
+  --warning: #b7791f;
   --warning-light: #fffbeb;
-  --danger: #dc2626;
+  --danger: #c2413a;
   --danger-light: #fef2f2;
-  --radius: 16px;
-  --radius-sm: 10px;
+  --accent: #d85b3f;
+  --accent-light: #fff0ea;
+  --radius: 12px;
+  --radius-sm: 8px;
   --radius-xs: 8px;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-  --shadow-lg: 0 6px 28px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.03);
+  --shadow: 0 1px 2px rgba(18,34,31,0.05), 0 8px 24px rgba(18,34,31,0.04);
+  --shadow-lg: 0 14px 42px rgba(18,34,31,0.10), 0 4px 12px rgba(18,34,31,0.05);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
@@ -47,11 +49,11 @@ body {
 /* Layout */
 .app { display: flex; min-height: 100vh; }
 .sidebar {
-  width: 210px; background: var(--sidebar-bg); border-right: 1px solid var(--border);
+  width: 224px; background: linear-gradient(180deg, #eef2ee 0%, #f7f8f5 100%); border-right: 1px solid var(--border);
   padding: 24px 14px; display: flex; flex-direction: column; flex-shrink: 0;
   position: sticky; top: 0; height: 100vh; overflow-y: auto; z-index: 10;
 }
-.sidebar-logo { font-size: 17px; font-weight: 700; margin-bottom: 28px; display: flex; align-items: center; gap: 8px; color: var(--text); letter-spacing: -0.2px; }
+.sidebar-logo { font-size: 18px; font-weight: 800; margin-bottom: 28px; display: flex; align-items: center; gap: 8px; color: var(--text); letter-spacing: 0; }
 .sidebar-logo .lg { font-size: 22px; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .sidebar-item {
@@ -60,11 +62,11 @@ body {
   border: 1.5px solid transparent; user-select: none;
 }
 .sidebar-item:hover { background: rgba(0,0,0,0.04); color: var(--text); }
-.sidebar-item.active { background: var(--primary); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(91,95,239,0.25); }
+.sidebar-item.active { background: var(--primary); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(18,107,95,0.18); }
 .sidebar-item .si-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
 .sidebar-item.version { margin-top: auto; font-size: 11px; font-weight: 500; color: var(--text3); padding-top: 20px; border-top: 1px solid var(--border); border-radius: 0; margin-top: 20px; }
 .sidebar-item.version:hover { background: transparent; color: var(--text3); }
-.content { flex: 1; min-width: 0; padding: 28px 48px 60px; }
+.content { flex: 1; min-width: 0; padding: 28px 48px 60px; background: radial-gradient(circle at 100% 0%, rgba(216,91,63,.08), transparent 280px), var(--bg); }
 .content-inner { max-width: none; }
 .aside {
   width: 280px; flex-shrink: 0; background: var(--sidebar-bg);
@@ -116,7 +118,7 @@ body {
   transition: var(--transition);
 }
 .step.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
-.step.active .n { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(91,95,239,0.35); }
+.step.active .n { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(18,107,95,0.30); }
 .step.done { color: var(--success); border-bottom-color: var(--success); }
 .step.done .n { background: var(--success); color: #fff; }
 
@@ -142,7 +144,7 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary); background: #fff;
-  box-shadow: 0 0 0 3px rgba(91,95,239,0.08);
+  box-shadow: 0 0 0 3px rgba(18,107,95,0.10);
 }
 select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239898a4' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
 textarea { resize: vertical; min-height: 80px; }
@@ -164,7 +166,7 @@ textarea { resize: vertical; min-height: 80px; }
   font-family: var(--font); cursor: pointer; border: none; transition: var(--transition);
 }
 .btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(91,95,239,0.3); }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(18,107,95,0.24); }
 .btn-primary:disabled { background: #b8baf5; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn-secondary { background: #f0efe9; color: var(--text); }
 .btn-secondary:hover { background: #e6e3da; }
@@ -223,6 +225,20 @@ textarea { resize: vertical; min-height: 80px; }
 .error-panel pre {
   white-space:pre-wrap; word-break:break-word; margin:8px 0 0;
   font-size:12px; line-height:1.5; color:#7f1d1d;
+}
+.history-readonly-banner {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.history-readonly-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
 }
 @keyframes pulse {
   0%,100% { transform: scale(1); }
@@ -569,9 +585,10 @@ textarea { resize: vertical; min-height: 80px; }
     <div class="sidebar-logo"><span class="lg">🎬</span> AI内容成片</div>
     <div class="sidebar-nav">
       <div class="sidebar-item active" data-page="page-select" onclick="startNewContent()"><span class="si-icon">➕</span>新建内容</div>
+      <div class="sidebar-item" data-page="page-personas" onclick="renderPersonaManager();goPage('page-personas')"><span class="si-icon">👤</span>账号人设</div>
       <div class="sidebar-item" data-page="page-materials" onclick="loadMaterials();goPage('page-materials')"><span class="si-icon">📁</span>素材库</div>
       <div class="sidebar-item" data-page="page-mix" onclick="openMixPage()"><span class="si-icon">🎞️</span>素材混剪</div>
-      <div class="sidebar-item" data-page="page-history" onclick="renderHistory();goPage('page-history')"><span class="si-icon">🕐</span>历史任务</div>
+      <div class="sidebar-item" data-page="page-history" onclick="openHistoryPage()"><span class="si-icon">🕐</span>历史任务</div>
       <div class="sidebar-item" data-page="page-publish" onclick="goPage('page-publish')"><span class="si-icon">📤</span>发布设置</div>
     </div>
     <div class="auth-user" id="authUserBox"></div>
@@ -898,12 +915,100 @@ textarea { resize: vertical; min-height: 80px; }
   </div>
 
   <!-- ================================================================
+       Page: Persona Manager
+       ================================================================ -->
+  <div class="page" id="page-personas">
+    <div class="card">
+      <div class="card-title">👤 账号人设配置</div>
+      <div class="card-subtitle">把长期不变的账号信息先存好。新建内容时选择账号人设，再填写本次内容主题。</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">人设名称</label>
+          <input id="personaName" placeholder="例如：义乌美楠烫金包装厂">
+        </div>
+        <div class="form-group">
+          <label class="form-label">品牌/账号名称</label>
+          <input id="personaBrandName" placeholder="例如：美楠烫金包装">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">账号一句话定位</label>
+          <input id="personaTagline" placeholder="例如：帮中小工厂把包装做得更高级">
+        </div>
+        <div class="form-group">
+          <label class="form-label">赛道/领域</label>
+          <input id="personaNiche" placeholder="例如：包装印刷、社区生鲜、纸品日化">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">发布平台</label>
+          <select id="personaPlatform">
+            <option value="抖音">抖音</option>
+            <option value="小红书">小红书</option>
+            <option value="快手">快手</option>
+            <option value="B站">B站</option>
+            <option value="视频号">视频号</option>
+            <option value="微博">微博</option>
+            <option value="公众号">公众号</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">人设风格</label>
+          <select id="personaTone">
+            <option value="专业权威">专业权威</option>
+            <option value="亲切接地气">亲切接地气</option>
+            <option value="高端精英">高端精英</option>
+            <option value="幽默搞怪">幽默搞怪</option>
+            <option value="温暖走心">温暖走心</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">目标人群</label>
+          <input id="personaAudience" placeholder="例如：包装采购、门店老板、本地宝妈">
+        </div>
+        <div class="form-group">
+          <label class="form-label">默认音色</label>
+          <select id="personaVoice">
+            <option value="longanyang">龙安阳（稳重男声）</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">风格参考</label>
+        <input id="personaReference" placeholder="例如：像某某账号，节奏快、案例多、少讲概念">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="savePersonaFromManager()">保存账号人设</button>
+        <button class="btn btn-secondary" onclick="clearPersonaForm()">清空表单</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">已保存的人设</div>
+      <div id="personaList" class="history-list"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================
        Page 2: Content Goal
        ================================================================ -->
   <div class="page active" id="page-select">
     <div class="card">
       <div class="card-title">👤 账号人设</div>
       <div class="card-subtitle">设定AI要扮演的角色，生成的内容会自动匹配这个人设</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">选择账号人设 <span class="form-hint">可在左侧“账号人设”维护</span></label>
+          <select id="personaSelect" onchange="applySelectedPersona()"></select>
+        </div>
+        <div class="form-group" style="align-self:end;">
+          <button class="btn btn-secondary" onclick="savePersonaFromCurrentForm()">保存为账号人设</button>
+        </div>
+      </div>
 
       <div class="form-row">
         <div class="form-group">
@@ -1207,7 +1312,7 @@ textarea { resize: vertical; min-height: 80px; }
         <button class="btn btn-secondary" onclick="composeVoiceover()">🔊 生成配音成片</button>
         <button class="btn btn-secondary" onclick="downloadVideo()">🎬 下载视频</button>
         <button class="btn btn-success" onclick="openPublishCenter()">🚀 一键发布</button>
-        <button class="btn btn-secondary" onclick="renderHistory();goPage('page-history')">📚 历史任务</button>
+        <button class="btn btn-secondary" onclick="openHistoryPage()">📚 历史任务</button>
         <button class="btn btn-primary btn-lg" onclick="exportAll()" style="flex:1;">📥 导出成品</button>
       </div>
     </div>
@@ -1644,7 +1749,7 @@ const S = {
   // Persona + Content
   brandName: '', brandTagline: '', niche: '', reference: '',
   platform: '', contentType: '', topic: '', contentDesc: '', tone: '',
-  audience: '', features: [], extraDesc: '', copyCount: 3, wordLimit: '中',
+  audience: '', audienceCustom: '', features: [], extraDesc: '', copyCount: 3, wordLimit: '中',
   // Results
   copywriting: [],
   selectedPlanIndex: 0,
@@ -1679,6 +1784,10 @@ const S = {
   tagLibrary: [],
   tagEditorStoredName: '',
   qaReport: null,
+  personas: [],
+  selectedPersonaId: '',
+  historyReadOnly: false,
+  viewingHistoryTaskId: null,
   jimengRawResult: null,
   jimengVideoCandidates: [],
   lastError: null,
@@ -1826,12 +1935,176 @@ function loadUserLocalState() {
   if (S.currentUser?.role === 'admin' && !localStorage.getItem(tagKey) && localStorage.getItem('agentflow_tag_library')) {
     localStorage.setItem(tagKey, localStorage.getItem('agentflow_tag_library'));
   }
+  const personaKey = userStorageKey('agentflow_personas_v1');
+  if (S.currentUser?.role === 'admin' && !localStorage.getItem(personaKey) && localStorage.getItem('agentflow_personas_v1')) {
+    localStorage.setItem(personaKey, localStorage.getItem('agentflow_personas_v1'));
+  }
   const historyKey = userStorageKey('agentflow_history_v1');
   if (S.currentUser?.role === 'admin' && !localStorage.getItem(historyKey) && localStorage.getItem('agentflow_history_v1')) {
     localStorage.setItem(historyKey, localStorage.getItem('agentflow_history_v1'));
   }
   try { S.tagLibrary = JSON.parse(localStorage.getItem(tagKey) || '[]') || []; }
   catch { S.tagLibrary = []; }
+  try { S.personas = JSON.parse(localStorage.getItem(personaKey) || '[]') || []; }
+  catch { S.personas = []; }
+  renderPersonaSelect();
+}
+
+function personaStorageKey() {
+  return userStorageKey('agentflow_personas_v1');
+}
+
+function savePersonas() {
+  localStorage.setItem(personaStorageKey(), JSON.stringify((S.personas || []).slice(0, 100)));
+  renderPersonaSelect();
+  renderPersonaManager();
+}
+
+function renderPersonaSelect() {
+  const select = document.getElementById('personaSelect');
+  if (!select) return;
+  const personas = S.personas || [];
+  select.innerHTML = '<option value="">不选择，手动填写</option>' + personas.map(p => `<option value="${escAttr(p.id)}">${esc(p.name || p.brandName || '未命名人设')}</option>`).join('');
+  select.value = S.selectedPersonaId || '';
+}
+
+function readPersonaForm() {
+  return {
+    id: document.getElementById('personaName')?.dataset.editingId || `persona_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: document.getElementById('personaName')?.value?.trim() || document.getElementById('personaBrandName')?.value?.trim() || '未命名人设',
+    brandName: document.getElementById('personaBrandName')?.value?.trim() || '',
+    brandTagline: document.getElementById('personaTagline')?.value?.trim() || '',
+    niche: document.getElementById('personaNiche')?.value?.trim() || '',
+    platform: document.getElementById('personaPlatform')?.value || '抖音',
+    tone: document.getElementById('personaTone')?.value || '亲切接地气',
+    audience: document.getElementById('personaAudience')?.value?.trim() || '',
+    reference: document.getElementById('personaReference')?.value?.trim() || '',
+    voice: document.getElementById('personaVoice')?.value || 'longanyang',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function fillPersonaForm(persona = {}) {
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+  set('personaName', persona.name || '');
+  set('personaBrandName', persona.brandName || '');
+  set('personaTagline', persona.brandTagline || '');
+  set('personaNiche', persona.niche || '');
+  set('personaPlatform', persona.platform || '抖音');
+  set('personaTone', persona.tone || '亲切接地气');
+  set('personaAudience', persona.audience || '');
+  set('personaReference', persona.reference || '');
+  set('personaVoice', persona.voice || 'longanyang');
+  const name = document.getElementById('personaName');
+  if (name) name.dataset.editingId = persona.id || '';
+}
+
+function clearPersonaForm() {
+  fillPersonaForm({});
+}
+
+function savePersona(persona) {
+  const list = (S.personas || []).filter(p => p.id !== persona.id);
+  list.unshift(persona);
+  S.personas = list;
+  S.selectedPersonaId = persona.id;
+  savePersonas();
+  toast('✅ 账号人设已保存');
+}
+
+function savePersonaFromManager() {
+  const persona = readPersonaForm();
+  savePersona(persona);
+  clearPersonaForm();
+}
+
+function savePersonaFromCurrentForm() {
+  collectConfigFromDom();
+  const persona = {
+    id: `persona_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: S.brandName || S.niche || '未命名人设',
+    brandName: S.brandName,
+    brandTagline: S.brandTagline,
+    niche: S.niche,
+    platform: S.platform || '抖音',
+    tone: S.tone || '亲切接地气',
+    audience: S.audience || S.audienceCustom || '',
+    reference: S.reference,
+    voice: S.voice || 'longanyang',
+    updatedAt: new Date().toISOString(),
+  };
+  savePersona(persona);
+}
+
+function applyPersona(persona) {
+  if (!persona) return;
+  S.selectedPersonaId = persona.id || '';
+  const set = (id, value) => { const el = document.getElementById(id); if (el && value !== undefined) el.value = value || ''; };
+  set('brandName', persona.brandName);
+  set('brandTagline', persona.brandTagline);
+  set('niche', persona.niche);
+  set('platform', persona.platform || '抖音');
+  set('tone', persona.tone || '亲切接地气');
+  set('reference', persona.reference);
+  set('contentVoiceSelect', persona.voice || S.voice || 'longanyang');
+  syncVoiceSelects(persona.voice || S.voice || 'longanyang');
+  const audienceSelect = document.getElementById('audience');
+  const audienceCustom = document.getElementById('audienceCustom');
+  if (audienceSelect && audienceCustom) {
+    const known = Array.from(audienceSelect.options).some(o => o.value === persona.audience);
+    audienceSelect.value = known ? persona.audience : 'custom';
+    audienceCustom.value = known ? '' : (persona.audience || '');
+    toggleCustomAudience();
+  }
+  collectConfigFromDom();
+}
+
+function applySelectedPersona() {
+  const id = document.getElementById('personaSelect')?.value || '';
+  S.selectedPersonaId = id;
+  const persona = (S.personas || []).find(p => p.id === id);
+  if (persona) applyPersona(persona);
+}
+
+function editPersona(id) {
+  const persona = (S.personas || []).find(p => p.id === id);
+  if (!persona) return;
+  fillPersonaForm(persona);
+  goPage('page-personas');
+}
+
+function deletePersona(id) {
+  if (!confirm('确定删除这个账号人设吗？')) return;
+  S.personas = (S.personas || []).filter(p => p.id !== id);
+  if (S.selectedPersonaId === id) S.selectedPersonaId = '';
+  savePersonas();
+}
+
+function renderPersonaManager() {
+  renderPersonaSelect();
+  const box = document.getElementById('personaList');
+  if (!box) return;
+  const personas = S.personas || [];
+  if (!personas.length) {
+    box.innerHTML = '<p style="color:var(--text3);">暂无账号人设。可以在上方新建，也可以从“新建内容”当前填写的信息保存。</p>';
+    return;
+  }
+  box.innerHTML = personas.map(p => `
+    <div class="history-item">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+        <div>
+          <strong>${esc(p.name || p.brandName || '未命名人设')}</strong>
+          <div class="meta">${esc(p.brandName || '')} · ${esc(p.niche || '未填写赛道')} · ${esc(p.platform || '抖音')} · ${esc(p.audience || '未填写目标人群')}</div>
+        </div>
+        <span class="status-pill status-generated">${esc(p.tone || '默认风格')}</span>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary btn-sm" onclick="applyPersona((S.personas||[]).find(p=>p.id==='${escAttr(p.id)}'));goPage('page-select')">用于新建内容</button>
+        <button class="btn btn-secondary btn-sm" onclick="editPersona('${escAttr(p.id)}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePersona('${escAttr(p.id)}')">删除</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 function stripContentDraftFields(config = {}) {
@@ -1843,6 +2116,8 @@ function stripContentDraftFields(config = {}) {
 }
 
 function resetNewContentForm() {
+  S.historyReadOnly = false;
+  S.viewingHistoryTaskId = null;
   for (const id of CONTENT_FORM_FIELDS) {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -1874,9 +2149,85 @@ function resetNewContentForm() {
   toggleCustomDuration();
 }
 
+function populateContentFormFromState() {
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ''; };
+  set('brandName', S.brandName);
+  set('brandTagline', S.brandTagline);
+  set('niche', S.niche);
+  set('reference', S.reference);
+  set('platform', S.platform || '抖音');
+  set('tone', S.tone || '');
+  const audienceSelect = document.getElementById('audience');
+  const audienceCustom = document.getElementById('audienceCustom');
+  if (audienceSelect && audienceCustom) {
+    const known = Array.from(audienceSelect.options).some(o => o.value === S.audience);
+    audienceSelect.value = known ? S.audience : 'custom';
+    audienceCustom.value = known ? '' : (S.audienceCustom || S.audience || '');
+    toggleCustomAudience();
+  }
+  set('topic', S.topic);
+  set('contentDesc', S.contentDesc);
+  set('contentType', S.contentType || '');
+  set('copyCount', String(S.copyCount || 3));
+  set('contentVideoDuration', S.contentVideoDuration || '15');
+  set('customVideoDuration', S.customVideoDuration || S.contentVideoDuration || '15');
+  set('wordLimit', S.wordLimit || '中');
+  set('extraDesc', S.extraDesc);
+  document.querySelectorAll('#featureTags .tag').forEach(t => t.classList.toggle('selected', (S.features || []).includes(t.dataset.v)));
+  renderPersonaSelect();
+}
+
 function startNewContent() {
+  S.historyReadOnly = false;
+  S.viewingHistoryTaskId = null;
   resetNewContentForm();
   goPage('page-select');
+}
+
+function copyCurrentHistoryAsNewTask() {
+  const oldTitle = S.copywriting?.[0]?.title || S.topic || '';
+  S.historyReadOnly = false;
+  S.viewingHistoryTaskId = null;
+  S.currentTaskId = null;
+  S.planApproved = false;
+  S.copywriting = [];
+  S.images = [];
+  S.videoUrl = null;
+  S.sourceVideoUrl = null;
+  S.sourceVideoHasAudio = null;
+  S.sourceVideoDuration = null;
+  S.voicedVideoUrl = null;
+  S.videoTaskId = null;
+  S.lastError = null;
+  S.qaReport = null;
+  S.materialPlan = null;
+  S.sceneAssetPlan = null;
+  S.sceneImagePromptsOverride = null;
+  S.pexelsLast = null;
+  S.jimengRawResult = null;
+  S.jimengVideoCandidates = [];
+  populateContentFormFromState();
+  toast(oldTitle ? '已复制为新任务，可重新生成' : '已复制为新任务');
+  goPage('page-select');
+}
+
+function deleteCurrentHistoryTask() {
+  const id = S.viewingHistoryTaskId || S.currentTaskId;
+  if (!id) return;
+  if (!confirm('确定删除这条历史任务吗？')) return;
+  localStorage.setItem(historyStorageKey(), JSON.stringify(getHistory().filter(item => item.id !== id)));
+  S.historyReadOnly = false;
+  S.viewingHistoryTaskId = null;
+  renderHistory();
+  goPage('page-history');
+  toast('历史任务已删除');
+}
+
+function openHistoryPage() {
+  S.historyReadOnly = false;
+  S.viewingHistoryTaskId = null;
+  renderHistory();
+  goPage('page-history');
 }
 
 function toggleCustomAudience() {
@@ -2003,6 +2354,7 @@ function goPage(id) {
   document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
   const activeSidebar = document.querySelector(`.sidebar-item[data-page="${id}"]`);
   if (activeSidebar) activeSidebar.classList.add('active');
+  applyHistoryReadOnlyChrome(id);
   // aside panel
   document.querySelectorAll('.aside-panel').forEach(p => p.classList.remove('active'));
   const panel = document.querySelector(`.aside-panel[data-aside="${id}"]`);
@@ -2012,6 +2364,88 @@ function goPage(id) {
     if (id === 'page-history') refreshAsideHistoryStats();
     if (id === 'page-publish') renderPublishCenter();
   }
+}
+
+function applyHistoryReadOnlyChrome(pageId) {
+  document.querySelectorAll('.history-readonly-banner,.history-readonly-actions').forEach(el => el.remove());
+  document.querySelectorAll('.history-hidden-action').forEach(el => {
+    el.classList.remove('history-hidden-action');
+    el.style.display = el.dataset.prevDisplay || '';
+    delete el.dataset.prevDisplay;
+  });
+  document.querySelectorAll('[data-history-disabled="1"]').forEach(el => {
+    el.disabled = false;
+    el.readOnly = false;
+    el.removeAttribute('data-history-disabled');
+  });
+  if (!S.historyReadOnly) return;
+  const page = document.getElementById(pageId);
+  if (!page) return;
+  const banner = document.createElement('div');
+  banner.className = 'history-readonly-banner';
+  banner.textContent = '历史任务查看模式：可以回看每一步，但不能在原历史任务上重新生成或编辑。需要修改时请复制为新任务。';
+  page.prepend(banner);
+  if (pageId === 'page-publish') return;
+  page.querySelectorAll('input, textarea, select').forEach(el => {
+    el.disabled = true;
+    el.readOnly = true;
+    el.setAttribute('data-history-disabled', '1');
+  });
+  page.querySelectorAll('.btn-row').forEach(row => {
+    row.dataset.prevDisplay = row.style.display || '';
+    row.style.display = 'none';
+    row.classList.add('history-hidden-action');
+  });
+  const actions = document.createElement('div');
+  actions.className = 'history-readonly-actions btn-row';
+  actions.innerHTML = `
+    <button class="btn btn-primary" onclick="copyCurrentHistoryAsNewTask()">复制为新任务</button>
+    <button class="btn btn-success" onclick="openPublishCenter()">发布</button>
+    <button class="btn btn-secondary" onclick="exportAll()">导出成品</button>
+    <button class="btn btn-danger" onclick="deleteCurrentHistoryTask()">删除</button>
+    <button class="btn btn-secondary" onclick="openHistoryPage()">返回历史任务</button>
+  `;
+  page.querySelector('.card')?.appendChild(actions);
+}
+
+function goHistoryStep(pageId) {
+  if (!S.historyReadOnly) return goPage(pageId);
+  if (pageId === 'page-select') {
+    populateContentFormFromState();
+  } else if (pageId === 'page-confirm-copy') {
+    renderCopyConfirm();
+  } else if (pageId === 'page-review') {
+    renderPlanReview();
+  } else if (pageId === 'page-result') {
+    renderResults();
+  } else if (pageId === 'page-progress') {
+    renderHistoryProgressSnapshot();
+  } else if (pageId === 'page-publish') {
+    renderPublishCenter();
+  }
+  goPage(pageId);
+}
+
+function renderHistoryProgressSnapshot() {
+  const details = [
+    `历史任务：${S.topic || S.copywriting?.[0]?.title || '未命名内容'}`,
+    `文案方案：${S.copywriting?.length || 0} 套，已归档`,
+    `素材画面：${S.images?.length || 0} 张，${S.videoUrl ? '视频已生成' : '暂无视频'}`,
+    `成片状态：${S.videoUrl ? videoModeLabel() : '仅保留脚本和素材记录'}`,
+  ];
+  for (let i = 0; i < 4; i++) {
+    const ic = document.getElementById(`ic${i}`);
+    const d = document.getElementById(`d${i}`);
+    const b = document.getElementById(`b${i}`);
+    if (ic) {
+      ic.className = 'progress-icon done';
+      ic.textContent = ['📋','📝','🖼️','🎬'][i];
+    }
+    if (d) d.textContent = details[i] || '已归档';
+    if (b) b.style.width = '100%';
+  }
+  const cancel = document.getElementById('btnCancel');
+  if (cancel) cancel.style.display = 'none';
 }
 
 /* ============================================================
@@ -5289,6 +5723,36 @@ async function cacheBestGeneratedVideo(videoUrls) {
 /* ============================================================
    RENDER RESULTS
    ============================================================ */
+function getDisplayImageUrl(img) {
+  return img?.cloudUrl || img?.url || img?.sourceUrl || img?.materialItem?.cloudUrl || img?.materialItem?.url || '';
+}
+
+async function refreshExpiredHistoryImageUrls() {
+  const images = S.images || [];
+  let changed = false;
+  await Promise.all(images.map(async img => {
+    if (!img) return;
+    const current = getDisplayImageUrl(img);
+    const ossKey = img.ossKey || img.materialItem?.ossKey || '';
+    if (!ossKey || (current && !isExpiredOssSignedUrl(current))) return;
+    const refreshed = await resolveI2vCloudImageUrl(img);
+    if (refreshed) {
+      img.url = refreshed;
+      img.cloudUrl = refreshed;
+      changed = true;
+    }
+  }));
+  if (changed && S.viewingHistoryTaskId) {
+    const list = getHistory();
+    const idx = list.findIndex(item => item.id === S.viewingHistoryTaskId);
+    if (idx >= 0) {
+      list[idx].images = S.images;
+      localStorage.setItem(historyStorageKey(), JSON.stringify(list.slice(0, 50)));
+    }
+  }
+  return changed;
+}
+
 function renderResults() {
   renderErrorPanels();
   // Copywriting
@@ -5338,20 +5802,26 @@ function renderResults() {
   // Images
   const ic = document.getElementById('imgContainer');
   if (S.images.length > 0) {
-    ic.innerHTML = S.images.map((img, idx) => `
+    ic.innerHTML = S.images.map((img, idx) => {
+      const imgUrl = getDisplayImageUrl(img);
+      return `
       <div class="image-card">
         <div class="image-thumb">
-          <img src="${img.url}" alt="${img.label}" loading="lazy" onclick="viewImage('${encodeURIComponent(img.url)}')" onerror="this.style.display='none';this.parentElement.nextElementSibling.style.display='block';">
+          <img src="${escAttr(imgUrl)}" alt="${escAttr(img.label || `图片${idx + 1}`)}" loading="lazy" onclick="viewImage('${encodeURIComponent(imgUrl)}')" onerror="this.style.display='none';this.parentElement.nextElementSibling.style.display='block';">
           ${S.brandName ? `<div class="image-brand">${esc(S.brandName)}</div>` : ''}
         </div>
-        <div style="display:none;padding:40px;text-align:center;color:var(--text3);">图片链接过期</div>
-        <div class="img-label">${img.label}</div>
+        <div style="display:none;padding:40px;text-align:center;color:var(--text3);">图片链接过期或文件不可访问</div>
+        <div class="img-label">${esc(img.label || `图片${idx + 1}`)}</div>
         <div class="image-actions">
-          <button class="btn btn-secondary" onclick="viewImage('${encodeURIComponent(img.url)}')">查看</button>
+          <button class="btn btn-secondary" onclick="viewImage('${encodeURIComponent(imgUrl)}')">查看</button>
           <button class="btn btn-primary" onclick="downloadImage(${idx})">下载</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
+    if (S.historyReadOnly) {
+      refreshExpiredHistoryImageUrls().then(changed => { if (changed) renderResults(); });
+    }
   } else { ic.innerHTML = '<p style="color:var(--text3);">无图片</p>'; }
 
   // Video display
@@ -6777,9 +7247,7 @@ function isMixHistoryItem(item) {
     || String(item?.videoGenerationMode || '').startsWith('local-material-mix');
 }
 
-function restoreTask(id) {
-  const task = getHistory().find(item => item.id === id);
-  if (!task) { toast('❌ 找不到历史任务'); return; }
+function applyHistoryTaskToState(task) {
   S.currentTaskId = task.id;
   S.brandName = task.persona?.brandName || '';
   S.brandTagline = task.persona?.brandTagline || '';
@@ -6824,8 +7292,23 @@ function restoreTask(id) {
   S.jimengVideoCandidates = task.jimengVideoCandidates || [];
   S.lastError = task.lastError || null;
   S.publishPlatform = task.publishPlatform || S.platform || '抖音';
-  renderResults();
+}
+
+function restoreTask(id) {
+  const task = getHistory().find(item => item.id === id);
+  if (!task) { toast('❌ 找不到历史任务'); return; }
+  S.historyReadOnly = true;
+  S.viewingHistoryTaskId = id;
+  applyHistoryTaskToState(task);
+  refreshExpiredHistoryImageUrls().finally(() => renderResults());
   goPage('page-result');
+}
+
+function copyHistoryTaskAsNew(id) {
+  const task = getHistory().find(item => item.id === id);
+  if (!task) { toast('❌ 找不到历史任务'); return; }
+  applyHistoryTaskToState(task);
+  copyCurrentHistoryAsNewTask();
 }
 
 function renderHistory() {
@@ -6861,6 +7344,7 @@ function renderHistory() {
         </div>
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn btn-secondary btn-sm" onclick="restoreTask('${item.id}')">查看</button>
+          <button class="btn btn-secondary btn-sm" onclick="copyHistoryTaskAsNew('${item.id}')">复制为新任务</button>
           <button class="btn btn-primary btn-sm" onclick="publishHistoryTask('${item.id}')">发布</button>
           <button class="btn btn-secondary btn-sm" onclick="downloadHistoryTask('${item.id}')">导出成品</button>
           <button class="btn btn-danger btn-sm" onclick="deleteHistoryTask('${item.id}')">删除</button>
@@ -7329,6 +7813,13 @@ document.addEventListener('DOMContentLoaded', () => {
   ['loginEmail', 'loginPassword'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
+  });
+  document.querySelectorAll('#stepBar .step').forEach(step => {
+    step.addEventListener('click', () => {
+      const pageId = step.dataset.page;
+      if (!pageId) return;
+      if (S.historyReadOnly) goHistoryStep(pageId);
+    });
   });
   loadModelCapabilities();
   toggleImgProvider();
