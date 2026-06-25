@@ -1533,7 +1533,7 @@ textarea { resize: vertical; min-height: 80px; }
             <div class="form-group">
               <label class="form-label">声音/字幕</label>
               <select id="mixAudioMode">
-                <option value="voice">配音版（推荐；无百炼 Key 时使用本机中文语音）</option>
+                <option value="voice">配音版（推荐；自动生成旁白）</option>
                 <option value="subtitles">字幕版（只把每段文案压到画面上）</option>
                 <option value="silent">无声版（只做画面混剪）</option>
               </select>
@@ -3992,6 +3992,22 @@ function sanitizeSubtitleText(value) {
   return text.slice(0, 18);
 }
 
+function sanitizeMixVoiceText(value) {
+  const text = String(value || '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFFFC\uFFFD]/g, '')
+    .replace(/[□▯◻◼�]/g, '')
+    .replace(/[^\u4e00-\u9fa5A-Za-z0-9，。！？、；：“”‘’（）《》【】,.!?;:()\[\]\-+/%&·…—\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  const compact = text.replace(/\s+/g, '');
+  if (/^(无|不加|无需|没有)?字幕$/i.test(compact)) return '';
+  if (/(无字幕|没有字幕|不加字幕|无需字幕|保留.*尾音|尾音|可为空|空字符串|无需显示|不显示文字|不显示字幕)/i.test(compact)) return '';
+  if (/^[（(].*[）)]$/.test(compact) && compact.length > 8) return '';
+  return text.slice(0, 60);
+}
+
 function buildSceneDurationsForImages(images, plan, totalDuration) {
   const total = Math.max(3, Math.min(120, Number(totalDuration) || getTargetVideoDuration(S)));
   const storyboard = getStoryboardScenes(plan);
@@ -6448,9 +6464,13 @@ async function generateMaterialMix() {
     toast('请先生成素材编排预览');
     return;
   }
-  const clips = S.mixPreview.slots
+  const selectedSlots = S.mixPreview.slots
+    .filter(slot => slot.item?.storedName);
+  const mixSubtitleForSlot = (slot) => sanitizeSubtitleText(slot?.voiceover || slot?.title || slot?.visual || '');
+  const mixVoiceTextForSlot = (slot) => sanitizeMixVoiceText(slot?.voiceover || slot?.visual || slot?.title || '');
+  const clips = selectedSlots
     .filter(slot => slot.item?.storedName)
-    .map(slot => ({ storedName: slot.item.storedName, duration: slot.seconds, title: slot.title, caption: slot.voiceover || '' }));
+    .map(slot => ({ storedName: slot.item.storedName, duration: slot.seconds, title: slot.title, caption: mixSubtitleForSlot(slot) }));
   if (!clips.length) {
     toast('没有可用素材，请先选择素材');
     return;
@@ -6466,13 +6486,22 @@ async function generateMaterialMix() {
     const brandName = document.getElementById('mixBrand')?.value?.trim() || S.brandName || '';
     const audioMode = document.getElementById('mixAudioMode')?.value || 'subtitles';
     const mixVoice = getSelectedVoice();
-    const voiceText = S.mixPreview.slots.map(s => (s.voiceover || '').trim()).filter(Boolean).join(' ');
+    const voicePieces = selectedSlots.map(mixVoiceTextForSlot).filter(Boolean);
+    const voiceText = voicePieces.join('。');
+    const subtitleTexts = selectedSlots.map(mixSubtitleForSlot);
+    const subtitleDurations = selectedSlots.map(s => Math.max(0.8, Number(s.seconds) || duration / Math.max(1, selectedSlots.length)));
     const composeClips = clips.map(c => ({ ...c, caption: audioMode === 'silent' ? '' : c.caption }));
-    if (audioMode === 'voice' && !voiceText) throw new Error('配音版需要先填写每段旁白/字幕文案');
+    if (audioMode === 'voice' && !voiceText) throw new Error('配音版需要至少有标题、画面描述或旁白文案');
     const res = await fetch('/mix-compose', {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ clips: composeClips, duration, aspect, brandName }),
+      body: JSON.stringify({
+        clips: composeClips,
+        duration,
+        aspect,
+        brandName,
+        burnCaptions: audioMode === 'subtitles',
+      }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || `混剪失败 HTTP ${res.status}`);
@@ -6493,6 +6522,8 @@ async function generateMaterialMix() {
           brandName,
           targetDuration: duration,
           audioLed: true,
+          subtitles: subtitleTexts,
+          subtitleDurations,
         }),
       });
       const voiceData = await voiceRes.json();

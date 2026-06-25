@@ -1830,6 +1830,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             aspect = data.get('aspect') or '9:16'
             width, height = (1280, 720) if aspect == '16:9' else (1080, 1080) if aspect == '1:1' else (720, 1280)
             brand = (data.get('brandName') or '').strip()
+            burn_captions = data.get('burnCaptions') is not False
 
             ffmpeg_exe = self._select_ffmpeg(require_drawtext=True)
             if not ffmpeg_exe:
@@ -1913,7 +1914,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 if caption_lines:
                     captions.append((offset, offset + clip['duration'], caption_lines))
                 offset += clip['duration']
-            if captions:
+            if burn_captions and captions:
                 font_path = self._find_chinese_font()
                 font_arg = f":fontfile='{self._ffmpeg_drawtext_escape(font_path)}'" if font_path else ''
                 caption_label = out_label
@@ -1965,6 +1966,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'height': self._media_dimensions(ffmpeg_exe, output_mp4)[1],
                 'clips': [c['item'].get('storedName') for c in selected],
                 'localClipCount': len(selected),
+                'captionBurned': bool(burn_captions and captions),
             })
         except Exception as e:
             self._json_response(500, {'ok': False, 'error': str(e)})
