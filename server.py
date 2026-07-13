@@ -27,6 +27,7 @@ import hmac
 import mimetypes
 import unicodedata
 import socket
+import ipaddress
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
 
@@ -1440,7 +1441,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 target_duration = 10.0
             target_duration = max(3.0, min(120.0, target_duration))
             raw_durations = data.get('durations') or []
+            burn_subtitles = data.get('burnSubtitles') is True
             raw_subtitles = data.get('subtitles') or []
+            if not burn_subtitles:
+                raw_subtitles = []
             aspect = data.get('aspect') or '9:16'
             width, height = (1280, 720) if aspect == '16:9' else (1024, 1024) if aspect == '1:1' else (720, 1280)
 
@@ -1523,7 +1527,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     subtitle = self._compact_subtitle(subtitle, max_chars=18)
                 if subtitle:
                     escaped = self._ffmpeg_drawtext_escape(subtitle)
-                    font_part = f":fontfile='{self._ffmpeg_drawtext_escape(fontfile)}'" if fontfile else ''
+                    font_part = self._ffmpeg_fontfile_part(fontfile)
                     fontsize = max(28, int(height * 0.034))
                     boxborder = max(12, int(height * 0.014))
                     filters.append(
@@ -1662,6 +1666,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             audio_fade_start = max(0, target_duration - 0.8)
             video_filter = f'tpad=stop_mode=clone:stop_duration={pad_duration:.2f}'
             audio_filter = f'apad=pad_dur=0.8,afade=t=out:st={audio_fade_start:.2f}:d=0.8'
+            subtitle_timeline_duration = max(0.5, min(target_duration, audio_duration if audio_duration > 0 else target_duration))
             subtitle_filters = []
             video_out_label = 'vbase'
             if isinstance(raw_subtitles, list):
@@ -1681,12 +1686,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                         subtitle_durations.append(0)
             if subtitle_texts:
                 if len(subtitle_durations) != len(subtitle_texts) or not any(v > 0 for v in subtitle_durations):
-                    subtitle_durations = [target_duration / max(1, len(subtitle_texts))] * len(subtitle_texts)
+                    subtitle_durations = self._subtitle_durations_from_text(subtitle_texts, subtitle_timeline_duration)
                 else:
-                    total_subtitle_duration = sum(max(0, v) for v in subtitle_durations) or target_duration
-                    subtitle_durations = [max(0.5, max(0, v) / total_subtitle_duration * target_duration) for v in subtitle_durations]
+                    total_subtitle_duration = sum(max(0, v) for v in subtitle_durations) or subtitle_timeline_duration
+                    subtitle_durations = [max(0.35, max(0, v) / total_subtitle_duration * subtitle_timeline_duration) for v in subtitle_durations]
+                    normalized_total = sum(subtitle_durations) or subtitle_timeline_duration
+                    if normalized_total > subtitle_timeline_duration:
+                        subtitle_durations = [v / normalized_total * subtitle_timeline_duration for v in subtitle_durations]
                 fontfile = self._find_chinese_font()
-                font_part = f":fontfile='{self._ffmpeg_drawtext_escape(fontfile)}'" if fontfile else ''
+                font_part = self._ffmpeg_fontfile_part(fontfile)
                 dimensions = self._media_dimensions(ffmpeg_exe, source_video)
                 video_height = dimensions[1] or 1280
                 fontsize = max(28, int(video_height * 0.034))
@@ -1695,10 +1703,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 current_label = 'vbase'
                 subtitle_index = 0
                 for idx, subtitle in enumerate(subtitle_texts):
-                    duration = subtitle_durations[idx] if idx < len(subtitle_durations) else target_duration / max(1, len(subtitle_texts))
+                    duration = subtitle_durations[idx] if idx < len(subtitle_durations) else subtitle_timeline_duration / max(1, len(subtitle_texts))
                     start = max(0.0, offset)
-                    end = min(target_duration, offset + duration)
+                    end = min(subtitle_timeline_duration, offset + duration)
                     offset += duration
+                    draw_end = max(start, end - 0.03)
                     lines = self._caption_lines(subtitle, max_chars=18, line_chars=18)
                     if not lines or end <= start:
                         continue
@@ -1711,7 +1720,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                             f'fontcolor=white:fontsize={fontsize}:'
                             f'box=1:boxcolor=black@0.48:boxborderw={boxborder}:'
                             f'x=(w-text_w)/2:y={y_expr}:'
-                            f"enable='between(t,{start:.2f},{end:.2f})'[{next_label}]"
+                            f"enable='between(t,{start:.2f},{draw_end:.2f})'[{next_label}]"
                         )
                         current_label = next_label
                         subtitle_index += 1
@@ -1900,7 +1909,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if brand:
                 safe_brand = self._ffmpeg_drawtext_escape(self._clean_subtitle_text(brand)[:24])
                 font_path = self._find_chinese_font()
-                font_arg = f":fontfile='{self._ffmpeg_drawtext_escape(font_path)}'" if font_path else ''
+                font_arg = self._ffmpeg_fontfile_part(font_path)
                 filters.append(
                     f"[vbase]drawtext=text='{safe_brand}'{font_arg}:x=w-tw-28:y=28:"
                     f"fontcolor=white:fontsize=26:box=1:boxcolor=black@0.35:boxborderw=12[vout]"
@@ -1916,7 +1925,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 offset += clip['duration']
             if burn_captions and captions:
                 font_path = self._find_chinese_font()
-                font_arg = f":fontfile='{self._ffmpeg_drawtext_escape(font_path)}'" if font_path else ''
+                font_arg = self._ffmpeg_fontfile_part(font_path)
                 caption_label = out_label
                 line_idx = 0
                 for start, end, lines in captions:
@@ -1977,8 +1986,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             data = json.loads(raw.decode('utf-8'))
             api_key = (data.get('apiKey') or '').strip()
-            if not api_key:
-                raise ValueError('缺少 Pexels API Key')
             queries = data.get('queries') or []
             if isinstance(queries, str):
                 queries = [queries]
@@ -2006,22 +2013,29 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             cache_dir = self._video_cache_dir()
             target_count = max(int(material_plan.get('minClipCount') or 3), min(6, len(queries) + 2))
             local_candidates = self._local_material_video_paths(target_count, queries, material_plan)
-            pexels_candidates = self._pexels_find_and_download_clips(api_key, queries, cache_dir, target_count=target_count)
+            pexels_candidates = self._pexels_find_and_download_clips(api_key, queries, cache_dir, target_count=target_count) if api_key else []
             local_clip_count = len(local_candidates)
             pexels_clip_count = len(pexels_candidates)
             clips = self._merge_material_candidates(local_candidates, pexels_candidates, target_count)
             if not clips:
-                raise RuntimeError('Pexels 未找到可用视频素材，请换更具体的关键词')
+                raise RuntimeError('本地素材库未找到匹配的视频素材' + ('，Pexels 也未找到可用视频素材' if api_key else '，且未配置 Pexels Key'))
             material_issues = []
+            material_warnings = []
             if len(clips) < target_count:
-                material_issues.append(f'可用素材只有 {len(clips)} 段，低于最低要求 {target_count} 段')
+                if len(clips) < 2:
+                    material_issues.append(f'可用素材只有 {len(clips)} 段，低于最低要求 2 段')
+                else:
+                    material_warnings.append(f'可用素材只有 {len(clips)} 段，低于建议值 {target_count} 段；已优先使用真实素材，避免回退 AI 图片')
             if material_plan.get('requiresChineseBusinessContext'):
                 if local_clip_count == 0:
-                    material_issues.append(f'企业/中文语境内容没有命中已识别的本地企业素材；已搜索到 Pexels {pexels_clip_count} 段，但不适合作为主素材')
+                    material_issues.append(f'企业/中文语境内容没有命中已识别的本地企业素材；{"已搜索到 Pexels " + str(pexels_clip_count) + " 段，但不适合作为主素材" if api_key else "未配置 Pexels Key，且本地无合格企业视频素材"}')
                 elif pexels_clip_count > local_clip_count:
                     material_issues.append(f'企业/中文语境内容不允许 Pexels 成为主素材：本地合格候选 {local_clip_count} 段，Pexels 候选 {pexels_clip_count} 段；将改用百炼/千问生态 AI 视频生成')
                 elif local_clip_count + pexels_clip_count < target_count:
-                    material_issues.append(f'本地 + Pexels 候选素材只有 {local_clip_count + pexels_clip_count} 段，低于最低要求 {target_count} 段')
+                    if local_clip_count + pexels_clip_count < 2:
+                        material_issues.append(f'本地 + Pexels 候选素材只有 {local_clip_count + pexels_clip_count} 段，低于最低要求 2 段')
+                    else:
+                        material_warnings.append(f'本地 + Pexels 候选素材只有 {local_clip_count + pexels_clip_count} 段，低于建议值 {target_count} 段')
             if material_issues:
                 self._json_response(422, {
                     'ok': False,
@@ -2032,8 +2046,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                         'foundClipCount': len(clips),
                         'localClipCount': local_clip_count,
                         'pexelsClipCount': pexels_clip_count,
-                        'pexelsSearched': True,
+                        'pexelsSearched': bool(api_key),
                         'queries': queries,
+                        'issues': material_issues,
+                        'warnings': material_warnings,
                     },
                 })
                 return
@@ -2058,8 +2074,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 label = f'v{idx}'
                 filters.append(
                     f'[{idx}:v]{scale_crop},trim=duration={per_clip:.3f},'
-                    f'setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.2,'
-                    f'fade=t=out:st={max(0.1, per_clip - 0.25):.3f}:d=0.25[{label}]'
+                    f'setpts=PTS-STARTPTS[{label}]'
                 )
                 labels.append(f'[{label}]')
             filters.append(''.join(labels) + f'concat=n={len(selected)}:v=1:a=0[vbase]')
@@ -2099,9 +2114,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     'foundClipCount': len(clips),
                     'localClipCount': local_clip_count,
                     'pexelsClipCount': pexels_clip_count,
-                    'pexelsSearched': True,
+                    'pexelsSearched': bool(api_key),
                     'fallback': False,
-                    'issues': [],
+                    'issues': material_warnings,
                 },
             })
         except Exception as e:
@@ -2156,11 +2171,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     continue
                 text = ' '.join([
                     item.get('filename') or '',
+                    item.get('storedName') or '',
                     ' '.join(item.get('tags') or []),
+                    ' '.join(item.get('manualTags') or []),
+                    ' '.join(item.get('aiTags') or []),
                     analysis.get('sceneDesc') or '',
                     analysis.get('bestUse') or '',
                     ' '.join(analysis.get('autoTags') or []),
                 ])
+                if self._material_realism_risk(text):
+                    continue
                 material_tokens = self._tokenize_material_text(text)
                 if required_domain and not material_tokens.intersection(required_domain):
                     continue
@@ -2178,13 +2198,38 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 must_hits = must_tokens.intersection(material_tokens) if must_tokens else set()
                 filtered_hits = {t for t in hits if t not in self._generic_material_tokens()}
                 domain_hits = required_domain.intersection(material_tokens) if required_domain else set()
-                if (filtered_hits or domain_hits) and (not must_tokens or must_hits):
+                realism_bonus = self._material_realism_bonus(text)
+                generic_office_hits = {'office', 'business', 'meeting', 'team', '办公室', '办公', '会议室', '办公环境', '商务'}.intersection(material_tokens)
+                realistic_office_match = requires_verified and realism_bonus >= 12 and bool(generic_office_hits)
+                if (filtered_hits or domain_hits or realistic_office_match) and (not must_tokens or must_hits or realistic_office_match):
                     if not required_domain and len(filtered_hits) < 2:
-                        continue
-                    score = len(filtered_hits) * 10 + len(domain_hits) * 18 + len(must_hits) * 8 + min(5, len(item.get('analysis', {}).get('autoTags') or []))
+                        if not realistic_office_match:
+                            continue
+                    score = len(filtered_hits) * 10 + len(domain_hits) * 18 + len(must_hits) * 8 + min(5, len(item.get('analysis', {}).get('autoTags') or [])) + realism_bonus
                     scored.append((score, item.get('createdAt') or 0, path))
         scored.sort(reverse=True)
         return [path for _, _, path in scored[:limit]]
+
+    def _material_realism_risk(self, text):
+        raw = str(text or '').lower()
+        risk_terms = [
+            'ai生成', 'ai 生成', 'generated', 'happyhorse',
+            '全息', '全息界面', '全息影像', 'hud', '科幻', '科技概念',
+            '乱码', '字幕', '分屏动画', '卡通', '动画人物',
+            '国外形象', '外国', '欧美', 'western', 'foreign',
+            '正脸口播', '口播', '对镜头讲解',
+            '虚拟', '3d', 'cgi', '赛博', '蓝色大脑',
+        ]
+        return any(term in raw for term in risk_terms)
+
+    def _material_realism_bonus(self, text):
+        raw = str(text or '').lower()
+        bonus_terms = [
+            '公司素材', '实拍', '真实', '办公室', '会议室', '办公环境',
+            '开放式工位', '玻璃隔断', '前台接待区', '企业内景',
+            '明亮采光', '商务空间', '职场', '办公桌椅',
+        ]
+        return min(30, sum(6 for term in bonus_terms if term in raw))
 
     def _tokenize_material_text(self, text):
         raw = str(text or '').lower()
@@ -2432,8 +2477,27 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _ffmpeg_drawtext_escape(self, text):
         return text.replace('\\', '\\\\').replace(':', '\\:').replace("'", "\\'").replace('%', '\\%')
 
+    def _ffmpeg_fontfile_part(self, font_path):
+        if not font_path:
+            return ''
+        normalized = os.path.abspath(font_path).replace('\\', '/')
+        return f":fontfile='{self._ffmpeg_drawtext_escape(normalized)}'"
+
     def _find_chinese_font(self):
-        for candidate in [
+        candidates = []
+        if os.name == 'nt':
+            font_dir = os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'Fonts')
+            candidates.extend(os.path.join(font_dir, name) for name in [
+                'msyh.ttc',
+                'msyhbd.ttc',
+                'simhei.ttf',
+                'simsun.ttc',
+                'Deng.ttf',
+                'NotoSansSC-VF.ttf',
+            ])
+            candidates.extend(glob.glob(os.path.join(font_dir, 'Noto Sans SC*.otf')))
+            candidates.extend(glob.glob(os.path.join(font_dir, 'SourceHanSansSC*.otf')))
+        candidates.extend([
             '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
             '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
             '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
@@ -2443,7 +2507,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             '/System/Library/Fonts/STHeiti Light.ttc',
             '/Library/Fonts/Arial Unicode.ttf',
             '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
-        ]:
+        ])
+        for candidate in candidates:
             if os.path.exists(candidate):
                 return candidate
         return ''
@@ -2481,13 +2546,78 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return []
         return [clean[:max(1, line_chars)]]
 
-    def _subtitle_chunks_from_text(self, text, chunk_chars=14, max_chunks=6):
+    def _subtitle_weight(self, text):
+        clean = self._clean_subtitle_text(text)
+        if not clean:
+            return 1.0
+        chinese = len(re.findall(r'[\u4e00-\u9fa5]', clean))
+        word_units = sum(max(1.0, len(word) / 4.0) for word in re.findall(r'[A-Za-z0-9]+', clean))
+        punctuation = len(re.findall(r'[，,。！？!?；;、：:]', clean)) * 0.35
+        return max(1.0, chinese + word_units + punctuation)
+
+    def _subtitle_durations_from_text(self, subtitles, total_duration):
+        total = max(0.5, float(total_duration or 0.5))
+        weights = []
+        for item in subtitles:
+            clean = self._compact_subtitle(item, max_chars=18)
+            weights.append(self._subtitle_weight(clean) if clean else 0.0)
+        active_count = len([w for w in weights if w > 0])
+        if active_count <= 0:
+            return []
+        min_per = min(1.05, max(0.35, (total / active_count) * 0.45))
+        min_total = min(total * 0.78, min_per * active_count)
+        weighted_pool = max(0.0, total - min_total)
+        weight_total = sum(weights) or active_count
+        durations = []
+        for weight in weights:
+            if weight <= 0:
+                durations.append(0.0)
+            else:
+                durations.append((min_total / active_count) + (weighted_pool * weight / weight_total))
+        duration_total = sum(durations) or total
+        durations = [max(0.25, value * total / duration_total) if value > 0 else 0.0 for value in durations]
+        adjusted_total = sum(durations) or total
+        if adjusted_total > total:
+            durations = [value / adjusted_total * total for value in durations]
+        return durations
+
+    def _subtitle_chunks_from_text(self, text, chunk_chars=14, max_chunks=14):
         clean = re.sub(r'[#@]\S+', '', self._clean_subtitle_text(text))
-        clean = re.sub(r'[，,。！？!?；;：:、\s]+', '', clean).strip()
+        clean = re.sub(r'\s+', ' ', clean).strip()
         if not clean:
             return []
-        chunks = [clean[i:i + chunk_chars] for i in range(0, min(len(clean), chunk_chars * max_chunks), chunk_chars)]
-        return [chunk for chunk in chunks if self._compact_subtitle(chunk)]
+        parts = []
+        sentence = ''
+        for char in clean:
+            sentence += char
+            compact_len = len(re.sub(r'\s+', '', sentence))
+            if re.match(r'[。！？!?；;]', char) or (compact_len >= chunk_chars and re.match(r'[，,、：:\s]', char)):
+                parts.append(sentence.strip())
+                sentence = ''
+        if sentence.strip():
+            parts.append(sentence.strip())
+
+        chunks = []
+        for part in parts:
+            rest = part.strip()
+            while len(re.sub(r'\s+', '', rest)) > 18:
+                head = rest[:chunk_chars + 6]
+                natural_cut = max(head.rfind(mark) for mark in ['，', ',', '、', '：', ':', ' '])
+                cut = natural_cut + 1 if natural_cut >= 8 else chunk_chars
+                chunk = self._compact_subtitle(rest[:cut], max_chars=18)
+                if chunk:
+                    chunks.append(chunk)
+                rest = rest[cut:].strip()
+                if len(chunks) >= max_chunks:
+                    break
+            if len(chunks) >= max_chunks:
+                break
+            chunk = self._compact_subtitle(re.sub(r'[，,。！？!?；;：:、\s]+$', '', rest), max_chars=18)
+            if chunk:
+                chunks.append(chunk)
+            if len(chunks) >= max_chunks:
+                break
+        return chunks[:max_chunks]
 
     def _create_dashscope_tts(self, text, voice, auth_header, output_path):
         voice = self._normalize_tts_voice(voice)
@@ -2792,6 +2922,10 @@ boot();
         if not target_url:
             self.send_error(400, 'Missing X-Target-URL header')
             return
+        allowed, reason = self._validate_proxy_target(target_url)
+        if not allowed:
+            self._json_response(403, {'ok': False, 'error': f'Proxy target blocked: {reason}'})
+            return
 
         # Read request body
         content_length = int(self.headers.get('Content-Length', 0))
@@ -2875,6 +3009,40 @@ boot();
             self.send_header('Content-Length', str(len(body_bytes)))
             self.end_headers()
             self.wfile.write(body_bytes)
+
+    def _validate_proxy_target(self, target_url):
+        from urllib.parse import urlparse
+        parsed = urlparse(str(target_url or ''))
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return False, 'only http/https URLs are allowed'
+
+        host = parsed.hostname.lower()
+        if host in ('localhost',) or host.endswith('.localhost'):
+            return False, 'localhost is not allowed'
+
+        try:
+            ip = ipaddress.ip_address(host)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False, 'private or local network addresses are not allowed'
+        except ValueError:
+            try:
+                for result in socket.getaddrinfo(host, None):
+                    ip = ipaddress.ip_address(result[4][0])
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                        return False, 'private or local network addresses are not allowed'
+            except Exception as e:
+                return False, f'cannot resolve host: {e}'
+
+        settings = _load_app_settings()
+        allowed_prefixes = [
+            str(settings.get('textUrl') or '').strip(),
+            str(settings.get('visionUrl') or '').strip(),
+            'https://dashscope.aliyuncs.com/',
+            'https://api.deepseek.com/',
+        ]
+        if any(prefix and str(target_url).startswith(prefix) for prefix in allowed_prefixes):
+            return True, ''
+        return False, 'target is not in configured model endpoints'
 
     def _server_auth_for_target(self, target_url):
         settings = _load_app_settings()
@@ -3127,19 +3295,18 @@ if __name__ == '__main__':
     if os.environ.get('KILL_EXISTING_PORT') == '1':
         os.system(f'lsof -ti:{PORT} | xargs kill -9 2>/dev/null')
 
-    print(f"""
-╔══════════════════════════════════════════╗
-║   🤖 多Agent协同工作流 — 代理服务器       ║
-║                                          ║
-║   监听地址: {HOST}:{PORT}
-║   本地打开: http://localhost:{PORT}
-║   按 Ctrl+C 停止服务器                     ║
-╚══════════════════════════════════════════╝
-""")
+    print(
+        "\n"
+        "Agent Workflow proxy server\n"
+        f"Listening: {HOST}:{PORT}\n"
+        f"Open: http://localhost:{PORT}\n"
+        "Press Ctrl+C to stop.\n",
+        flush=True,
+    )
     server = http.server.ThreadingHTTPServer((HOST, PORT), ProxyHandler)
     server.daemon_threads = True
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print('\n👋 Server stopped.')
+        print('\nServer stopped.')
         server.server_close()

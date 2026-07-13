@@ -826,7 +826,8 @@ textarea { resize: vertical; min-height: 80px; }
         <div class="form-group">
           <label class="form-label">视频服务商</label>
             <select id="vidProvider" onchange="toggleVidProvider()">
-            <option value="bailian">阿里云百炼（通义/千问系）</option>
+            <option value="bailian">真实素材优先（推荐）</option>
+            <option value="bailian_i2v">百炼图生视频（实验，可能穿模）</option>
             <option value="pexels">Pexels 素材混剪（稳定成片）</option>
             <option value="agnes">Agnes AI（免费额度，如可用）</option>
             <option value="jimeng">即梦 AI（万界方舟）</option>
@@ -844,7 +845,7 @@ textarea { resize: vertical; min-height: 80px; }
               <option value="happyhorse-1.0-i2v">happyhorse-1.0-i2v（免费额度可用）</option>
               <option value="wan2.6-i2v">wan2.6-i2v（备用）</option>
             </select>
-            <p class="form-hint">主路径优先调用 wan2.7-i2v 图片转视频；失败或额度不足时自动降级 Ken Burns 动态成片。</p>
+            <p class="form-hint">默认先用本地/公共真实素材混剪；素材不足时才用稳定图片成片。选择“百炼图生视频”才会调用 i2v 真动态模型。</p>
           </div>
           <div class="form-group" style="display:none">
             <label class="form-label">视频时长</label>
@@ -2476,7 +2477,7 @@ function normalizeAgnesImageModel(model) {
 function toggleVidProvider() {
   const p = document.getElementById('vidProvider').value;
   S.vidProvider = p;
-  document.getElementById('vidBailianConfig').style.display = p === 'bailian' ? 'block' : 'none';
+  document.getElementById('vidBailianConfig').style.display = (p === 'bailian' || p === 'bailian_i2v') ? 'block' : 'none';
   document.getElementById('vidPexelsConfig').style.display = p === 'pexels' ? 'block' : 'none';
   document.getElementById('vidAgnesConfig').style.display = p === 'agnes' ? 'block' : 'none';
   document.getElementById('vidJimengConfig').style.display = p === 'jimeng' ? 'block' : 'none';
@@ -3150,32 +3151,32 @@ function buildLocalStoryboardPlan(selection) {
     shortText: `你们团队最想用AI解决哪个重复工作？ #AI工具 #企业提效 #${brand}`,
     hashtags: ['#AI工具', '#企业提效', '#办公自动化'],
     keywords: ['AI提效', '企业效率', '自动化', '办公场景', brand],
-    coverPrompt: `明亮现代中国办公室，电脑屏幕上有抽象AI数据流，中国职场人正在处理工作，${brand}企业科技感，干净构图，蓝白配色，专业可信，不要欧美外国人，不要正脸口播，不要生成可读文字、Logo或水印`,
-    videoPrompt: `生成一个${duration}秒企业AI短视频，主题是${topic}，中国企业办公场景，中国团队协作、电脑操作、抽象AI流程动画，画面专业明亮，展示AI帮助职场人减少重复工作，节奏清晰，商业宣传片质感，不要欧美外国人，不要正脸对镜头口播，不要生成文字、Logo、水印或乱码界面，边角预留少量品牌叠加空间`,
+    coverPrompt: `明亮现代中国办公室，桌面设备远景和模糊不可读的抽象AI流程卡片，中国职场人背影正在处理工作，${brand}企业科技感，干净构图，蓝白配色，专业可信，不要欧美外国人，不要正脸口播，不要生成可读文字、Logo或水印`,
+    videoPrompt: `生成一个${duration}秒企业AI短视频，主题是${topic}，中国企业办公场景，团队背影协作、会议桌面、设备远景、抽象AI流程动画，画面专业明亮，展示AI帮助职场人减少重复工作，节奏清晰，商业宣传片质感，不要欧美外国人，不要正脸对镜头口播，不要生成文字、Logo、水印、按钮、光标或乱码界面，边角预留少量品牌叠加空间`,
     storyboard: [
       {
         scene: 1,
         duration: `0-${Math.round(duration * 0.25 * 10) / 10}秒`,
-        shot: '职场人面对大量文档和表格，神情疲惫，电脑屏幕信息很多',
-        camera: '近景轻微推镜，强调压力感',
+        shot: '职场人背影坐在办公桌前，桌面有资料和设备，屏幕内容模糊不可读',
+        camera: '中景轻微推镜，强调压力感',
         textOverlay: '重复工作太多？',
-        videoPrompt: '明亮现代中国办公室，中国职场人侧面或背影面对大量文档、表格和电脑屏幕，神情疲惫，近景轻微推镜，真实商务风格，画面清晰，不要欧美外国人，不要正脸口播，不要文字乱码'
+        videoPrompt: '明亮现代中国办公室，中国职场人背影坐在办公桌前，桌面有资料和设备，屏幕只呈现模糊不可读的色块和窗口轮廓，中景轻微推镜，真实商务风格，画面清晰，不要欧美外国人，不要正脸口播，不要文字乱码'
       },
       {
         scene: 2,
         duration: `${Math.round(duration * 0.25 * 10) / 10}-${Math.round(duration * 0.55 * 10) / 10}秒`,
-        shot: 'AI系统自动整理文档、生成结构化表格，屏幕出现抽象数据流',
-        camera: '屏幕特写，快速切换，科技感',
+        shot: '抽象AI流程卡片在画面中轻微流动，屏幕内容不可读',
+        camera: '设备远景，轻微平移，科技感',
         textOverlay: 'AI自动处理',
-        videoPrompt: '电脑屏幕和手部操作特写，抽象AI界面自动整理文档并生成结构化信息，蓝白科技感数据流，快速切换镜头，现代中国企业办公场景，不要可读文字、Logo、英文字母或乱码'
+        videoPrompt: '设备远景和桌面局部，屏幕以模糊不可读的卡片、波形和图表轮廓表达AI自动整理流程，蓝白科技感，轻微平移镜头，现代中国企业办公场景，不要手指特写，不要可读文字、Logo、英文字母或乱码'
       },
       {
         scene: 3,
         duration: `${Math.round(duration * 0.55 * 10) / 10}-${Math.round(duration * 0.8 * 10) / 10}秒`,
-        shot: '职场人轻松完成工作，办公室明亮，画面有企业科技感',
+        shot: '团队背影在明亮办公室讨论方案，桌面设备和资料整齐',
         camera: '中景稳定镜头，轻微拉远',
         textOverlay: '把时间还给增长',
-        videoPrompt: '中国职场团队轻松完成工作，成员看向电脑和会议屏幕交流，明亮现代办公室，企业科技感，专业可信，商业宣传片质感，镜头稳定轻微拉远，不要正脸对镜头讲话，不要文字乱码'
+        videoPrompt: '中国职场团队背影或侧后方在明亮办公室讨论方案，桌面设备和资料整齐，屏幕内容模糊不可读，企业科技感，专业可信，商业宣传片质感，镜头稳定轻微拉远，不要正脸对镜头讲话，不要文字乱码'
       },
       {
         scene: 4,
@@ -3264,9 +3265,9 @@ function contentIndustryProfile(selection = S, plan = {}) {
       key: 'enterprise_ai',
       words: ['ai', '人工智能', '智能', '自动化', '软件', '系统', '数据', '企业', '公司', '办公', '客服', '销售', '运营', '团队'],
       label: '企业服务/AI办公',
-      visual: '中国企业办公、团队协作、电脑操作、会议沟通、流程动画、真实工作场景',
-      must: ['办公室', '团队', '电脑', '会议', '企业', '流程'],
-      avoid: ['餐饮', '食品', '厨房', '旅游', '宠物'],
+      visual: '中国企业办公环境、会议桌面、设备远景、团队背影协作、抽象流程动画、模糊不可读的屏幕色块和图表轮廓',
+      must: ['办公室', '团队', '设备', '会议', '企业', '流程'],
+      avoid: ['餐饮', '食品', '厨房', '旅游', '宠物', '可读屏幕文字', '软件品牌界面', '手指特写', '正脸特写'],
     },
   ];
   const scored = profiles
@@ -3288,7 +3289,57 @@ function contentIndustryProfile(selection = S, plan = {}) {
 
 function visualConstraintText(selection = S, plan = {}) {
   const profile = contentIndustryProfile(selection, plan);
-  return `本次行业语境：${profile.label}。画面优先：${profile.visual}。避免无关元素：${profile.avoid.join('、')}。人物与环境保持中国本土真实商业/生活场景；不要欧美外国人，不要真人正脸对镜头口播；不要生成可读文字、中文品牌名、英文字母、Logo或水印；画面边角保留少量干净留白，品牌名由后期弱化叠加。`;
+  return `本次行业语境：${profile.label}。画面优先：${profile.visual}。避免无关元素：${profile.avoid.join('、')}。人物与环境保持中国本土真实商业/生活场景；画面必须像手机或微单实拍素材，普通真实空间、自然光、真实阴影、真实透视、轻微环境杂物和不过度整理的现场细节，不要CGI、3D渲染、塑料皮肤、过度磨皮、科幻蓝光、广告海报、悬浮UI或完美棚拍；优先背影、侧后方、远景、肩部以上局部、桌面和设备环境，不要生成大特写人脸或手指动作；电脑/手机屏幕只能是模糊反光、色块、线条、图表轮廓或不可读卡片，不要生成真实软件名、可读中文/英文、按钮、光标、Logo或水印；画面边角保留少量干净留白，品牌名和字幕由后期叠加。`;
+}
+
+function photorealisticImageConstraintText(selection = S, plan = {}) {
+  return [
+    '照片级实拍感：像真实短视频素材的一帧，不像AI生成图、宣传海报、插画或概念图',
+    '使用真实镜头语言：35mm或50mm视角、自然景深、真实曝光、轻微镜头噪点、真实阴影和环境反射',
+    '人物要普通自然，不要网红脸、蜡像脸、完美皮肤、僵硬姿势、过度微笑或手指特写',
+    '空间要真实可信：桌面、墙面、地面、设备比例正确，物体有合理遮挡关系，不要悬浮物、穿模、无重力UI',
+    '色彩接近日常拍摄，不要高饱和赛博蓝紫光、过度锐化、HDR海报感或棚拍广告感'
+  ].join('；');
+}
+
+function stableBrollConstraintText(selection = S, plan = {}) {
+  const profile = contentIndustryProfile(selection, plan);
+  const aiOffice = profile.key === 'enterprise_ai';
+  const base = [
+    '优先生成像真实拍摄素材库里的B-roll画面：环境、桌面、设备远景、背影协作、侧后方交流、用白板、便签、桌面物件或模糊屏幕表现流程',
+    '画面质感接近纪录片式手机/微单实拍，不要海报、插画、CGI、3D渲染、科幻界面、漂浮图形或过度精修广告片',
+    '人物只做小幅自然动作，避免正脸特写、夸张表情、手指敲击、握拳、复杂多人表演',
+    '所有字幕、品牌名、工具名由系统后期叠加，模型画面内不要自带文字',
+  ];
+  if (aiOffice) {
+    base.push('AI工具界面只能出现在真实电脑或手机屏幕里，并且必须模糊不可读；不要出现悬浮卡片、科幻HUD、Notion、Gamma、Otter、ChatGPT、飞书、钉钉、WPS等具体软件界面');
+  }
+  return base.join('；');
+}
+
+function sanitizeGeneratedVisualPrompt(text, selection = S, plan = {}) {
+  let value = String(text || '').trim();
+  if (!value) return '';
+  const replacements = [
+    [/Notion\s*AI|NotionAI|Notion/gi, 'AI笔记工具'],
+    [/Gamma/gi, 'AI幻灯片工具'],
+    [/Otter/gi, 'AI转写工具'],
+    [/ChatGPT|DeepSeek|Kimi|通义|豆包|飞书|钉钉|腾讯会议|WPS/gi, 'AI办公工具'],
+    [/(电脑屏幕|显示器|手机屏幕|屏幕)(?:清晰)?显示[^，。；;]*(?:中文|英文|文字|标题|段落|纪要|字幕|翻译|按钮|界面|幻灯片|文档|光标)[^，。；;]*/g, '$1呈现模糊的抽象界面色块和图表轮廓'],
+    [/从录音生成[^，。；;]*/g, '以抽象波形和卡片动效表达自动整理过程'],
+    [/逐行弹出[^，。；;]*/g, '出现不可读的卡片轮廓变化'],
+    [/图片和文字自动填充/g, '图片占位块和不可读卡片自动排布'],
+    [/字幕(?:快速)?滚动/g, '抽象信息流动'],
+    [/鼠标光标[^，。；;]*/g, '光标不入镜'],
+    [/完成按钮|确认键|按钮/g, '模糊控件区域'],
+    [/一级、二级标题和要点段落|标题和要点段落|中文会议纪要|中文幻灯片|实时翻译界面|AI写作界面/g, '不可读的抽象办公界面'],
+    [/双手轻触键盘|双手自然放于键盘|双手放在键盘|手指|手部|握拳轻轻敲击桌面/g, '手部仅作为虚化局部，不做特写动作'],
+    [/正脸|面对镜头|相视而笑|流畅对话/g, '侧后方或背影交流'],
+  ];
+  replacements.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+  return `${value}。${photorealisticImageConstraintText(selection, plan)}。${stableBrollConstraintText(selection, plan)}。屏幕内容必须不可读，画面内不要出现任何文字、软件名、Logo、水印、乱码UI。`;
 }
 
 /* ============================================================
@@ -3473,16 +3524,17 @@ function getImagePromptsForSelection(plan, selection) {
 
 function buildImagePrompts(plan, selection) {
   const storyboard = getStoryboardScenes(plan);
-  const common = `${selection.platform}自媒体视觉，${selection.tone}风格，画面清晰，构图完整。${visualConstraintText(selection, plan)}`;
+  const common = `${selection.platform}自媒体视觉，${selection.tone}风格，真实可拍摄场景，主体明确，动作明确，环境明确，构图完整，竖屏9:16，真实光线，商业短片实拍素材帧。${visualConstraintText(selection, plan)}。${photorealisticImageConstraintText(selection, plan)}。${stableBrollConstraintText(selection, plan)}。不要生成文字、Logo、水印、乱码界面、畸形手指、夸张表情、欧美外国人、正脸对镜头口播、AI海报、插画、CGI、悬浮UI、过度磨皮。`;
   if (storyboard.length) {
     return storyboard.map((scene, idx) => {
-      const prompt = scene.videoPrompt || scene.shot || plan.videoPrompt || plan.coverPrompt || selection.topic;
+      const prompt = sanitizeGeneratedVisualPrompt(scene.videoPrompt || scene.shot || plan.videoPrompt || plan.coverPrompt || selection.topic, selection, plan);
+      const meaning = scene.textOverlay ? `本镜头表达的字幕含义：${scene.textOverlay}，不要把这些字生成到画面里。` : '';
       return {
         sceneIndex: idx,
         scene: scene.scene || idx + 1,
         duration: scene.duration || '',
         label: `镜头${idx + 1}`,
-        prompt: `为短视频第${idx + 1}个分镜生成一张关键画面。分镜画面：${prompt}。镜头运动参考：${scene.camera || '轻微推拉'}。字幕含义：${scene.textOverlay || ''}。${common}`,
+        prompt: `为短视频第${idx + 1}个分镜生成一张可直接用于图生视频的照片级实拍关键帧。画面必须具体可拍：主体是谁、在哪里、正在做什么要清楚。分镜画面：${prompt}。镜头运动参考：${scene.camera || '轻微推拉'}。${meaning}关键帧要求：像真实拍摄素材，不要拼贴，不要海报感，不要抽象背景，不要大段UI文字；保留画面边缘安全区，优先中景、远景、背影、侧后方和设备环境，光线干净自然，允许轻微真实噪点和现场杂物。${common}`,
       };
     });
   }
@@ -3491,12 +3543,26 @@ function buildImagePrompts(plan, selection) {
     scene: 1,
     duration: '',
     label: '镜头1',
-    prompt: `${plan.coverPrompt || plan.videoPrompt || selection.topic}。${common}`,
+    prompt: `${sanitizeGeneratedVisualPrompt(plan.coverPrompt || plan.videoPrompt || selection.topic, selection, plan)}。${common}`,
   }];
 }
 
 function getStoryboardScenes(plan) {
   return Array.isArray(plan?.storyboard) ? plan.storyboard.filter(s => s && (s.videoPrompt || s.shot || s.textOverlay)) : [];
+}
+
+function qualityMotionConstraintText(selection, plan) {
+  const profile = contentIndustryProfile(selection || {}, plan || {});
+  return [
+    `行业必须贴合：${profile.label || selection?.niche || selection?.topic || '当前主题'}`,
+    `优先画面：${profile.visual || '真实业务场景、真实人物动作、真实环境细节'}`,
+    stableBrollConstraintText(selection, plan),
+    '每个镜头只表达一个动作，不要把多个场景塞进同一镜头',
+    '镜头运动克制：轻微推近、平移或稳定跟拍，不要快速旋转、穿模、乱跳、频繁变脸',
+    '人物保持自然比例和一致服装，避免正脸大特写、手指特写、畸形手指和夸张表情',
+    '画面中不要出现可读文字、品牌字样、软件名、Logo、水印、乱码UI、按钮、光标或错误字幕',
+    '避免泛泛的科技感光效，除非主题本身需要；优先真实产品、真实流程、真实客户场景',
+  ].join('；');
 }
 
 function imageRecord(url, meta, label) {
@@ -3666,6 +3732,13 @@ function findBestLocalImageForScene(scene, prompt, materials, selection, exclude
   for (const item of materials) {
     const assetKey = item.storedName || item.id || item.url;
     if (assetKey && excludedAssets.has(assetKey)) continue;
+    const itemTags = [
+      ...(item.tags || []),
+      ...(item.manualTags || []),
+      ...(item.aiTags || []),
+      ...(item.analysis?.autoTags || []),
+    ].map(v => String(v || '').toLowerCase());
+    const isAiGeneratedAsset = itemTags.some(tag => /ai生成|自动入库|generated|ai_image/.test(tag));
     const textParts = [
       item.filename,
       item.storedName,
@@ -3694,7 +3767,7 @@ function findBestLocalImageForScene(scene, prompt, materials, selection, exclude
     const orientation = item.orientation || item.metadata?.orientation || '';
     const portraitBonus = orientation === '竖图' || (ratio > 0 && ratio < 0.92) || (dims.height && dims.width && dims.height > dims.width);
     const squareBonus = orientation === '方图' || (ratio >= 0.92 && ratio <= 1.08);
-    const aiGeneratedPenalty = (item.tags || []).includes('AI生成') ? -2 : 0;
+    const aiGeneratedPenalty = isAiGeneratedAsset ? -28 : 0;
     const coverageBonus = strictHits.length >= Math.ceil(strictNeedTerms.length * 0.45) ? 12 : 0;
     const semanticScore = Math.min(112, strictHits.length * 24 + coverageBonus);
     const score = semanticScore + (portraitBonus ? 3 : 0) + (squareBonus ? 1 : 0) + aiGeneratedPenalty;
@@ -3704,6 +3777,7 @@ function findBestLocalImageForScene(scene, prompt, materials, selection, exclude
       score,
       reason: [
         `严格命中 ${strictHits.slice(0, 6).join('、')}${strictHits.length > 6 ? ' 等关键词' : ''}`,
+        isAiGeneratedAsset ? 'AI图降权使用' : '',
       ].filter(Boolean).join('；'),
     };
     if (!best || candidate.score > best.score || (candidate.score === best.score && (item.createdAt || 0) > (best.item.createdAt || 0))) {
@@ -3863,7 +3937,7 @@ function mergeScenePlannedImages(plannedImages, generatedImages) {
   return merged.filter(Boolean);
 }
 
-/* [P0-6.1 DEPRECATED] 旧版文生视频主入口，已被 agent3_primaryCompose (i2v 主路径) 取代。保留仅供参考，新代码禁止调用。 */
+/* [P0-6.1 DEPRECATED] 旧版文生视频主入口，已被 agent3_primaryCompose 稳定成片路径取代。保留仅供参考，新代码禁止调用。 */
 async function agent3_generateVideo(selection, copywriting) {
   u(3, 'error', '当前视频路径已停用，请使用默认成片流程');
   return null;
@@ -3882,26 +3956,42 @@ async function agent3_primaryCompose(selection, copywriting) {
   const imageItems = (S.images || []).filter(img => img && (img.url || img.sourceUrl || img.cloudUrl || img.ossKey || img.materialItem?.cloudUrl || img.materialItem?.ossKey));
   const imageUrls = imageItems.map(img => img.url || img.sourceUrl || img.cloudUrl || img.materialItem?.url || img.materialItem?.cloudUrl).filter(Boolean);
   const errors = [];
+  const preferI2v = S.vidProvider === 'bailian_i2v';
+  const preferRealMaterial = S.vidProvider === 'bailian' || S.vidProvider === 'pexels';
 
-  if (imageUrls.length && hasWanxKeyConfigured()) {
+  if (preferRealMaterial) {
     try {
-      u(3, 'running', '视频合成：正在生成动态视频片段...');
+      u(3, 'running', S.pexelsKey
+        ? '真实素材路径：正在尝试本地/公共视频素材混剪...'
+        : '真实素材路径：正在尝试本地视频素材混剪...');
+      const url = await agent3_pexels(selection, copywriting);
+      S.videoGenerationMode = 'pexels';
+      return url;
+    } catch (e) {
+      errors.push(`真实素材混剪失败：${e.message || e}`);
+      u(3, 'running', '真实素材不足或不匹配，正在切换稳定图片成片...');
+    }
+  }
+
+  if (preferI2v && imageUrls.length && hasWanxKeyConfigured()) {
+    try {
+      u(3, 'running', '实验模式：正在生成图生视频动态片段...');
       const url = await agent3_i2vPrimaryVideo(selection, copywriting, imageItems, targetDuration);
       S.videoGenerationMode = 'ai-video';
       return url;
     } catch (e) {
       errors.push(`图生视频失败：${e.message || e}`);
       if (typeof logger !== 'undefined') logger.error(`[i2v primary failed] ${e.message || e}`);
-      u(3, 'running', '视频合成：动态视频暂不可用，正在切换备用成片方式...');
+      u(3, 'running', '实验图生视频暂不可用，正在切换稳定图片成片...');
     }
-  } else if (imageUrls.length && !hasWanxKeyConfigured()) {
-    u(3, 'running', '视频合成：云端动态视频未配置，正在使用备用成片方式...');
+  } else if (preferI2v && imageUrls.length && !hasWanxKeyConfigured()) {
+    u(3, 'running', '实验图生视频未配置百炼 Key，正在使用稳定图片成片...');
   }
 
   if (imageUrls.length) {
     try {
       const singleHint = imageUrls.length === 1 ? '（只有1张图，会使用明显推拉/平移运镜）' : '';
-      u(3, 'running', `视频合成：正在使用 ${imageUrls.length} 张画面生成成片${singleHint}...`);
+      u(3, 'running', `稳定成片：正在使用 ${imageUrls.length} 张画面生成推拉/平移视频${singleHint}...`);
       const data = await composeKenBurnsVideo(imageUrls, targetDuration);
       S.videoGenerationMode = 'kenburns';
       S.sourceVideoHasAudio = data.hasAudio;
@@ -3915,7 +4005,7 @@ async function agent3_primaryCompose(selection, copywriting) {
     }
   }
 
-  if (S.pexelsKey) {
+  if (!preferRealMaterial && S.pexelsKey) {
     try {
       u(3, 'running', '备用路径：正在尝试本地/公共素材混剪...');
       const url = await agent3_pexels(selection, copywriting);
@@ -3936,7 +4026,8 @@ async function composeKenBurnsVideo(imageUrls, duration) {
   const plan = S.copywriting?.[0] || {};
   const resolvedDuration = Math.max(3, Math.min(120, Number(duration) || getTargetVideoDuration(S)));
   const sceneDurations = buildSceneDurationsForImages(S.images || [], plan, resolvedDuration);
-  const subtitles = buildSceneSubtitlesForImages(S.images || [], plan);
+  const burnSubtitles = false;
+  const subtitles = burnSubtitles ? buildSceneSubtitlesForImages(S.images || [], plan) : [];
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90000);
   S.aborter?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
@@ -3950,6 +4041,7 @@ async function composeKenBurnsVideo(imageUrls, duration) {
         duration: resolvedDuration,
         durations: sceneDurations,
         subtitles,
+        burnSubtitles,
         aspect,
         brandName: S.brandName || '',
       }),
@@ -4026,32 +4118,83 @@ function buildSceneDurationsForImages(images, plan, totalDuration) {
 function buildVoiceoverSubtitlePayload(durationOverride, voiceText = '') {
   const plan = S.copywriting?.[0] || {};
   const duration = Math.max(3, Number(durationOverride) || S.sourceVideoDuration || getTargetVideoDuration(S));
-  const images = S.images || [];
-  let subtitles = buildSceneSubtitlesForImages(images, plan);
-  let subtitleDurations = buildSceneDurationsForImages(images, plan, duration);
-  if (!subtitles.some(Boolean)) {
-    subtitles = splitVoiceoverIntoSubtitles(voiceText || S.voiceoverText || buildVoiceoverText(duration));
-    subtitleDurations = subtitles.map(() => duration / Math.max(1, subtitles.length));
+  const speechDuration = Math.max(1.5, Number(S.ttsDuration) || Number(S.voiceoverPlannedDuration) || duration);
+  const voiceSubtitles = splitVoiceoverIntoSubtitles(voiceText || S.voiceoverText || buildVoiceoverText(duration));
+  if (voiceSubtitles.length) {
+    return {
+      subtitles: voiceSubtitles,
+      subtitleDurations: buildSpeechSubtitleDurations(voiceSubtitles, speechDuration),
+    };
   }
-  return { subtitles, subtitleDurations };
+  const images = S.images || [];
+  const subtitles = buildSceneSubtitlesForImages(images, plan);
+  return {
+    subtitles,
+    subtitleDurations: buildSceneDurationsForImages(images, plan, duration),
+  };
 }
 
 function splitVoiceoverIntoSubtitles(text) {
-  const clean = String(text || '').replace(/[，,。！？!?；;：:、\s]+/g, ' ').trim();
+  const clean = String(text || '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFFFC\uFFFD]/g, '')
+    .replace(/[□▯◻◼�]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!clean) return [];
-  const chunks = [];
-  let current = '';
-  for (const part of clean.split(/\s+/).filter(Boolean)) {
-    const next = current ? current + part : part;
-    if (next.length > 12 && current) {
-      chunks.push(sanitizeSubtitleText(current));
-      current = part;
-    } else {
-      current = next;
+  const sentenceParts = [];
+  let sentence = '';
+  for (const ch of clean) {
+    sentence += ch;
+    const compactLen = sentence.replace(/\s+/g, '').length;
+    if (/[。！？!?；;]/.test(ch) || (compactLen >= 16 && /[，,、：:\s]/.test(ch))) {
+      sentenceParts.push(sentence.trim());
+      sentence = '';
     }
   }
-  if (current) chunks.push(sanitizeSubtitleText(current));
-  return chunks.filter(Boolean).slice(0, 6);
+  if (sentence.trim()) sentenceParts.push(sentence.trim());
+
+  const chunks = [];
+  const pushChunk = raw => {
+    const safe = sanitizeSubtitleText(String(raw || '').replace(/[，,。！？!?；;：:、\s]+$/g, ''));
+    if (safe) chunks.push(safe);
+  };
+  for (const part of sentenceParts) {
+    let rest = part.trim();
+    while (rest.replace(/\s+/g, '').length > 18) {
+      const head = rest.slice(0, 20);
+      const cutPoints = ['，', ',', '、', '：', ':', ' '].map(mark => head.lastIndexOf(mark));
+      const naturalCut = Math.max(...cutPoints);
+      const cut = naturalCut >= 8 ? naturalCut + 1 : 16;
+      pushChunk(rest.slice(0, cut));
+      rest = rest.slice(cut).trim();
+    }
+    pushChunk(rest);
+  }
+  return chunks.filter(Boolean).slice(0, 14);
+}
+
+function subtitleSpeechWeight(text) {
+  const clean = String(text || '').trim();
+  if (!clean) return 1;
+  const chinese = (clean.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const words = (clean.match(/[A-Za-z0-9]+/g) || []).reduce((sum, word) => sum + Math.max(1, word.length / 4), 0);
+  const punctuation = (clean.match(/[，,。！？!?；;、：:]/g) || []).length * 0.35;
+  return Math.max(1, chinese + words + punctuation);
+}
+
+function buildSpeechSubtitleDurations(subtitles, totalDuration) {
+  const clean = (subtitles || []).map(s => String(s || '').trim()).filter(Boolean);
+  if (!clean.length) return [];
+  const total = Math.max(1.5, Number(totalDuration) || getTargetVideoDuration(S));
+  const minPerSubtitle = Math.min(1.05, Math.max(0.45, (total / clean.length) * 0.45));
+  const minTotal = Math.min(total * 0.78, minPerSubtitle * clean.length);
+  const weightedPool = Math.max(0, total - minTotal);
+  const weights = clean.map(subtitleSpeechWeight);
+  const weightTotal = weights.reduce((sum, value) => sum + value, 0) || clean.length;
+  const raw = clean.map((_, idx) => (minTotal / clean.length) + (weightedPool * weights[idx] / weightTotal));
+  const rawTotal = raw.reduce((sum, value) => sum + value, 0) || total;
+  return raw.map(value => Math.max(0.45, value * total / rawTotal));
 }
 
 function parseSceneDurationSeconds(value) {
@@ -4136,17 +4279,20 @@ function recordI2vUsage(model, count = 1) {
 }
 
 function buildI2vScenePrompt(plan, selection, scene, index, total, duration) {
+  const safeScenePrompt = sanitizeGeneratedVisualPrompt(scene?.videoPrompt || scene?.shot || '', selection, plan);
   const sceneText = [
-    scene?.videoPrompt || scene?.shot || '',
+    safeScenePrompt,
     scene?.camera ? `镜头运动：${scene.camera}` : '',
-    scene?.textOverlay ? `本镜头表达：${scene.textOverlay}` : '',
+    scene?.textOverlay ? `本镜头表达：${scene.textOverlay}，这些文字由后期字幕叠加，不要生成在画面里` : '',
   ].filter(Boolean).join('。');
   const base = buildVideoPrompt(plan || {}, selection);
   return [
     `这是整条竖屏短视频的第${index + 1}/${total}段，单段约${duration.toFixed(1)}秒。`,
     sceneText || base,
+    qualityMotionConstraintText(selection, plan),
+    `生成方式：基于首帧自然运动，保持首帧主体、服装、场景和构图稳定；只做小幅真实动作和轻微运镜，不要突然换场景，不要新增无关人物，不要让主体消失。`,
     `保持中国本土商业短视频审美，主体一致，画面专业清晰，镜头自然连贯。`,
-    `不要欧美外国人，不要真人正脸对镜头口播，不要生成任何可读文字、Logo、水印或乱码UI。`,
+    `不要欧美外国人，不要真人正脸对镜头口播，不要生成任何可读文字、软件名、Logo、水印、按钮、光标或乱码UI。`,
   ].join(' ');
 }
 
@@ -4872,14 +5018,15 @@ async function agent3_jimeng(selection, copywriting) {
 function buildVideoPrompt(plan, selection) {
   const duration = getTargetVideoDuration(selection);
   const visualConstraint = visualConstraintText(selection, plan);
+  const motionConstraint = qualityMotionConstraintText(selection, plan);
   const scenes = (plan.storyboard || []).map(s => {
     const label = s.duration ? `${s.duration}` : `镜头${s.scene || ''}`;
-    return `${label}：${s.videoPrompt || s.shot || ''}；镜头：${s.camera || '自然运镜'}；建议字幕：${s.textOverlay || ''}`;
+    return `${label}：${sanitizeGeneratedVisualPrompt(s.videoPrompt || s.shot || '', selection, plan)}；镜头：${s.camera || '自然运镜'}；建议字幕：${s.textOverlay || ''}，字幕由后期叠加不要画进画面`;
   }).filter(Boolean);
   if (scenes.length > 0) {
-    return `生成一个${duration}秒${selection.platform}短视频。主题：${plan.title}。整体风格：${selection.tone}，${selection.contentType}，${selection.niche || ''}领域，画面专业清晰，节奏适合${selection.platform}。分镜：${scenes.join(' / ')}。要求：镜头变化要覆盖完整${duration}秒，不要只生成单一镜头或前5秒内容；画面连贯，主体一致，镜头自然，商业宣传片质感；${visualConstraint}`;
+    return `生成一个${duration}秒${selection.platform}短视频。主题：${plan.title}。整体风格：${selection.tone}，${selection.contentType}，${selection.niche || ''}领域，画面专业清晰，节奏适合${selection.platform}。分镜：${scenes.join(' / ')}。要求：镜头变化要覆盖完整${duration}秒，不要只生成单一镜头或前5秒内容；画面连贯，主体一致，镜头自然，商业宣传片质感；${visualConstraint}；${motionConstraint}`;
   }
-  return `${duration}秒${selection.platform}短视频。主题：${plan.title}。内容要点：${(plan.description || plan.caption || '').substring(0, 120)}。风格：${selection.tone}。${selection.platform === '抖音' ? '快节奏卡点，抓眼球' : selection.platform === '小红书' ? '清新治愈，生活化' : '专业大气，有质感'}。${(plan.keywords || []).slice(0,5).join('，')}。镜头变化要覆盖完整${duration}秒，不要只生成单一镜头或前5秒内容；${visualConstraint}`;
+  return `${duration}秒${selection.platform}短视频。主题：${plan.title}。内容要点：${(plan.description || plan.caption || '').substring(0, 120)}。风格：${selection.tone}。${selection.platform === '抖音' ? '快节奏卡点，抓眼球' : selection.platform === '小红书' ? '清新治愈，生活化' : '专业大气，有质感'}。${(plan.keywords || []).slice(0,5).join('，')}。镜头变化要覆盖完整${duration}秒，不要只生成单一镜头或前5秒内容；${visualConstraint}；${motionConstraint}`;
 }
 
 /* ============================================================
@@ -5043,7 +5190,7 @@ async function confirmCopyAndGenerateStoryboard(skipReview = false) {
   const text = (plan.voiceoverScript || plan.caption || '').trim();
   if (!text) { toast('❌ 请先填写配音短口播'); return; }
   if (!hasTextKeyConfigured() && !S.localStoryboardMode) { promptAdminConfig('❌ 文案模型 Key 未配置，请到管理后台维护系统配置'); return; }
-  if (!hasWanxKeyConfigured()) { promptAdminConfig('❌ 百炼 Key 未配置，无法生成配音和图生视频'); return; }
+  if (!hasWanxKeyConfigured()) { promptAdminConfig('❌ 百炼 Key 未配置，无法生成配音和成片'); return; }
 
   S.confirmedCopyText = text;
   S.running = true;
@@ -5110,9 +5257,10 @@ async function generateTtsAudio(text) {
 async function agent1_splitStoryboard(selection, plan, audioDuration) {
   const targetDuration = getTargetVideoDuration(selection);
   const duration = Math.max(3, Math.min(120, Number(audioDuration) || targetDuration));
-  const sceneCount = Math.max(3, Math.min(8, Math.ceil(duration / 3)));
+  const sceneCount = Math.max(3, Math.min(6, Math.ceil(duration / 5)));
   const profile = contentIndustryProfile(selection, plan);
   const visualConstraint = visualConstraintText(selection, plan);
+  const motionConstraint = qualityMotionConstraintText(selection, plan);
   const prompt = `你是短视频分镜导演。请只根据已经确认的口播文案，拆成可执行分镜。不要改写口播。
 
 【账号信息】
@@ -5157,7 +5305,13 @@ ${plan.voiceoverScript || plan.caption || ''}
 4. ${visualConstraint}
 5. 每个镜头都要服务口播内容，不能只是泛泛的科技感画面。
 6. 最后一个镜头必须自然收束，不能像话没说完。
-7. textOverlay 只能写观众应该看到的短字幕，不要写“无字幕”“保留尾音”“字幕短句”“可为空”等说明性占位；没有字幕就写空字符串。`;
+7. textOverlay 只能写观众应该看到的短字幕，不要写“无字幕”“保留尾音”“字幕短句”“可为空”等说明性占位；没有字幕就写空字符串。
+8. ${motionConstraint}
+9. 每个 videoPrompt 必须包含：主体、场景、动作、景别/构图、光线质感；不要只写“科技感”“高端”“专业”等抽象词。
+10. 每个镜头只安排一个主要动作，适合图生视频从首帧自然动起来；不要写快速转场、复杂多人表演、连续换地点。
+11. 禁止在 videoPrompt 里写具体软件名或品牌界面，例如 Notion、Gamma、Otter、ChatGPT、飞书、钉钉、WPS、腾讯会议；这些名称如必须出现，只能放在 textOverlay，由后期字幕叠加。
+12. 禁止要求屏幕清晰显示中文段落、标题、会议纪要、幻灯片、翻译字幕、按钮、光标、软件UI；如果要表达AI工具，写“模糊不可读的卡片、波形、图表轮廓、窗口色块”。
+13. 人物镜头优先背影、侧后方、远景、肩部以上局部或桌面环境；避免正脸、对镜头、手指特写、敲键盘特写、握拳、夸张表情。`;
 
   const r = await apiFetch(S.textUrl, {
     method: 'POST',
@@ -5192,16 +5346,20 @@ ${plan.voiceoverScript || plan.caption || ''}
     keywords: Array.isArray(parsed.keywords) && parsed.keywords.length ? parsed.keywords : plan.keywords,
     coverPrompt: parsed.coverPrompt || storyboard[0]?.videoPrompt || plan.coverPrompt,
     videoPrompt: parsed.videoPrompt || storyboard.map(s => s.videoPrompt || s.shot).join('；') || plan.videoPrompt,
-    storyboard: storyboard.map((s, idx) => ({
-      scene: s.scene || idx + 1,
-      duration: s.duration || '',
-      shot: s.shot || '',
-      camera: s.camera || '',
-      textOverlay: s.textOverlay || '',
-      videoPrompt: s.videoPrompt || s.shot || '',
-      materialKeywords: Array.isArray(s.materialKeywords) ? s.materialKeywords : [],
-      needsMotion: s.needsMotion !== false,
-    })),
+    storyboard: storyboard.map((s, idx) => {
+      const shot = sanitizeGeneratedVisualPrompt(s.shot || '', selection, plan);
+      const videoPrompt = sanitizeGeneratedVisualPrompt(s.videoPrompt || s.shot || '', selection, plan);
+      return {
+        scene: s.scene || idx + 1,
+        duration: s.duration || '',
+        shot,
+        camera: s.camera || '',
+        textOverlay: s.textOverlay || '',
+        videoPrompt,
+        materialKeywords: Array.isArray(s.materialKeywords) ? s.materialKeywords : [],
+        needsMotion: s.needsMotion !== false,
+      };
+    }),
   };
 }
 
@@ -5489,7 +5647,7 @@ function isAgnesImageChannelUnavailable(error) {
 }
 
 async function runVideoStep() {
-  u(3, 'running', '视频合成：优先生成动态视频，必要时切换备用成片方式...');
+  u(3, 'running', '视频合成：默认优先使用真实视频素材；素材不足时再用稳定图片成片...');
   window.__agnes_last_poll = null;
   window.__jimeng_last_poll = null;
   window.__dashscope_last_poll = null;
@@ -5667,8 +5825,8 @@ function publicProgressText(msg = '') {
   let text = String(msg || '');
   if (!text) return text;
   if (/图生视频主路径失败|动态视频暂不可用|自动降级|降级路径|Ken Burns|kenburns/i.test(text)) {
-    if (/失败|不可用|降级/.test(text)) return '视频合成：动态视频暂不可用，正在切换备用成片方式...';
-    return text.replace(/Ken Burns|kenburns/ig, '备用动态成片');
+    if (/失败|不可用|降级/.test(text)) return '视频合成：实验动态视频不可用，正在切换稳定图片成片...';
+    return text.replace(/Ken Burns|kenburns/ig, '稳定图片成片');
   }
   text = text
     .replace(/Scene Asset Planner[:：]\s*/g, '')
@@ -5936,8 +6094,8 @@ function renderResults() {
 }
 
 function videoModeLabel() {
-  if (S.videoGenerationMode === 'kenburns') return '生成模式：备用动态成片';
-  if (S.videoGenerationMode === 'pexels') return '生成模式：素材混剪';
+  if (S.videoGenerationMode === 'kenburns') return '生成模式：稳定图片成片';
+  if (S.videoGenerationMode === 'pexels') return '生成模式：真实素材混剪';
   if (S.videoGenerationMode === 'ai-video') return '生成模式：动态视频';
   return '生成模式：未标记';
 }
