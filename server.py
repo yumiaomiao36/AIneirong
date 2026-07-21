@@ -42,6 +42,8 @@ AUTH_DB = os.path.join(DATA_DIR, 'app.db')
 APP_SETTINGS_FILE = os.path.join(DATA_DIR, 'app_settings.json')
 PUBLISH_LOCK_FILE = os.path.join(DATA_DIR, 'publish.lock')
 
+MAX_JSON_BODY = 10 * 1024 * 1024  # 10MB 上限，防止内存劫持
+
 DEFAULT_APP_SETTINGS = {
     'textProviderPreset': 'deepseek',
     'textUrl': 'https://api.deepseek.com/v1/chat/completions',
@@ -340,6 +342,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
             self._material_delete()
         elif self.path.startswith('/log'):
+            if not self._require_user():
+                return
             self._log()
         elif self.path.startswith('/publish/douyin-draft'):
             if not self._require_user():
@@ -726,6 +730,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _log(self):
         """接收前端日志并写入文件"""
         content_length = int(self.headers.get('Content-Length', 0))
+        if content_length > 1024 * 1024:
+            self._json_response(413, {'ok': False, 'error': '日志请求体过大'})
+            return
         raw = self.rfile.read(content_length) if content_length > 0 else b'{}'
         try:
             data = json.loads(raw.decode('utf-8'))
@@ -1113,8 +1120,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+
     def _read_json_body(self):
         content_length = int(self.headers.get('Content-Length', 0))
+        if content_length > MAX_JSON_BODY:
+            raise ValueError('请求体过大，上限 10MB')
         raw = self.rfile.read(content_length) if content_length > 0 else b'{}'
         return json.loads(raw.decode('utf-8') or '{}')
 
