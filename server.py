@@ -2626,15 +2626,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         for model in ('cosyvoice-v3-flash', 'cosyvoice-v2', 'cosyvoice-v1'):
             payload = {
                 'model': model,
-                'input': {
-                    'text': text,
-                    'voice': voice,
-                    'format': 'mp3',
-                    'sample_rate': 24000,
-                    'volume': 70,
-                    'rate': 1.08,
-                    'language_hints': ['zh'],
-                },
+                'input': {'text': text},
+                'parameters': {'voice': voice, 'format': 'mp3', 'sample_rate': 24000, 'volume': 70, 'rate': 1.08},
             }
             req = urllib.request.Request(
                 'https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer',
